@@ -1,0 +1,374 @@
+---
+title: 'LoopClosing'
+description: 'Complete API reference for the ORB_SLAM3::LoopClosing class'
+---
+
+## Overview
+
+The `LoopClosing` class detects loops in the trajectory and performs place recognition. When a loop is detected, it performs pose graph optimization and full bundle adjustment to correct accumulated drift. It also handles map merging in multi-map scenarios.
+
+## Constructor
+
+```cpp
+LoopClosing(Atlas* pAtlas, 
+            KeyFrameDatabase* pDB, 
+            ORBVocabulary* pVoc,
+            const bool bFixScale, 
+            const bool bActiveLC)
+```
+
+### Parameters
+
+- `pAtlas`: Pointer to the Atlas (multi-map manager)
+- `pDB`: Pointer to the KeyFrame database for place recognition
+- `pVoc`: Pointer to ORB vocabulary for bag-of-words
+- `bFixScale`: True if scale should be fixed (false for monocular)
+- `bActiveLC`: True to enable loop closing, false to disable
+
+## Type Definitions
+
+### ConsistentGroup
+
+```cpp
+typedef pair<set<KeyFrame*>, int> ConsistentGroup;
+```
+
+Represents a consistent group of keyframes with their consistency count.
+
+### KeyFrameAndPose
+
+```cpp
+typedef map<KeyFrame*, g2o::Sim3, std::less<KeyFrame*>,
+    Eigen::aligned_allocator<std::pair<KeyFrame* const, g2o::Sim3>>> KeyFrameAndPose;
+```
+
+Map of keyframes to their Sim3 poses (3D similarity transformation).
+
+## Thread Control Methods
+
+### Run
+
+```cpp
+void Run()
+```
+
+Main function that runs in the loop closing thread. Continuously checks for loops and processes detections.
+
+### RequestFinish
+
+```cpp
+void RequestFinish()
+```
+
+Requests the loop closing thread to finish execution.
+
+### isFinished
+
+```cpp
+bool isFinished()
+```
+
+**Returns:** True if the thread has finished execution
+
+## Thread Communication
+
+### SetTracker
+
+```cpp
+void SetTracker(Tracking* pTracker)
+```
+
+Sets the pointer to the Tracking thread.
+
+**Parameters:**
+- `pTracker`: Pointer to Tracking object
+
+### SetLocalMapper
+
+```cpp
+void SetLocalMapper(LocalMapping* pLocalMapper)
+```
+
+Sets the pointer to the Local Mapping thread.
+
+**Parameters:**
+- `pLocalMapper`: Pointer to LocalMapping object
+
+## Keyframe Processing
+
+### InsertKeyFrame
+
+```cpp
+void InsertKeyFrame(KeyFrame *pKF)
+```
+
+Inserts a new keyframe into the loop detection queue.
+
+**Parameters:**
+- `pKF`: Pointer to the keyframe to process
+
+## State Management
+
+### RequestReset
+
+```cpp
+void RequestReset()
+```
+
+Requests a reset of the loop closing thread.
+
+### RequestResetActiveMap
+
+```cpp
+void RequestResetActiveMap(Map* pMap)
+```
+
+Requests a reset of the specified map.
+
+**Parameters:**
+- `pMap`: Pointer to the map to reset
+
+## Global Bundle Adjustment
+
+### RunGlobalBundleAdjustment
+
+```cpp
+void RunGlobalBundleAdjustment(Map* pActiveMap, unsigned long nLoopKF)
+```
+
+Runs global bundle adjustment in a separate thread after loop closure.
+
+**Parameters:**
+- `pActiveMap`: Pointer to the map to optimize
+- `nLoopKF`: ID of the loop closure keyframe
+
+**Note:** This function spawns a separate thread for optimization.
+
+### isRunningGBA
+
+```cpp
+bool isRunningGBA()
+```
+
+**Returns:** True if global bundle adjustment is currently running
+
+### isFinishedGBA
+
+```cpp
+bool isFinishedGBA()
+```
+
+**Returns:** True if the most recent global bundle adjustment has finished
+
+## Public Member Variables
+
+### Viewer
+
+```cpp
+Viewer* mpViewer;  // Pointer to viewer for visualization
+```
+
+## Usage Example
+
+```cpp
+// Loop Closing is typically created by the System class
+// Example initialization:
+
+ORB_SLAM3::LoopClosing loopCloser(pAtlas, pKeyFrameDB, pVocabulary,
+                                  false,  // don't fix scale (monocular)
+                                  true);  // enable loop closing
+
+loopCloser.SetTracker(pTracker);
+loopCloser.SetLocalMapper(pLocalMapper);
+
+// Start the thread
+std::thread loopClosingThread(&ORB_SLAM3::LoopClosing::Run, &loopCloser);
+
+// Insert a keyframe for loop detection
+loopCloser.InsertKeyFrame(pKeyFrame);
+
+// Check if global BA is running
+if (loopCloser.isRunningGBA()) {
+    std::cout << "Global Bundle Adjustment in progress..." << std::endl;
+}
+
+// Wait for GBA to finish
+while (loopCloser.isRunningGBA()) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+}
+
+if (loopCloser.isFinishedGBA()) {
+    std::cout << "Global Bundle Adjustment completed" << std::endl;
+}
+
+// Cleanup
+loopCloser.RequestFinish();
+loopClosingThread.join();
+```
+
+## Loop Detection Pipeline
+
+The loop closing thread follows this processing pipeline:
+
+1. **Wait for Keyframes**: Check the queue for new keyframes
+2. **Detect Loop Candidates**:
+   - Query KeyFrame database using bag-of-words
+   - Check temporal and geometric consistency
+3. **Compute Sim3**:
+   - Estimate relative Sim3 transformation
+   - Verify with RANSAC and feature matching
+4. **Loop Fusion**:
+   - Fuse duplicate map points
+   - Update covisibility graph
+5. **Pose Graph Optimization**:
+   - Optimize poses to close the loop
+   - Propagate corrections through covisibility graph
+6. **Global Bundle Adjustment**:
+   - Optional full bundle adjustment for maximum accuracy
+   - Runs in separate thread to avoid blocking
+
+## Place Recognition Methods
+
+The loop detection uses two main approaches:
+
+### NewDetectCommonRegions (Protected)
+
+```cpp
+bool NewDetectCommonRegions()
+```
+
+Advanced place recognition that detects both:
+- **Loop closures**: Revisiting a previous location in the same map
+- **Map merging**: Detecting overlap between different maps
+
+**Returns:** True if a common region was detected
+
+### Detection Steps
+
+1. **Bag-of-Words Query**: Find keyframe candidates using visual similarity
+2. **Consistency Check**: Verify temporal consistency across multiple frames
+3. **Geometric Verification**: Compute and verify Sim3 transformation
+4. **Map Point Matching**: Match and project map points between regions
+
+## Map Merging
+
+When multiple maps exist in the Atlas, loop closing can detect overlaps and merge maps:
+
+### MergeLocal (Protected)
+
+```cpp
+void MergeLocal()
+```
+
+Merges the current map with another map when overlap is detected.
+
+**Process:**
+1. Align the two maps using Sim3 transformation
+2. Fuse duplicate map points and keyframes
+3. Perform welding bundle adjustment
+4. Update Atlas with merged map
+
+### MergeLocal2 (Protected)
+
+```cpp
+void MergeLocal2()
+```
+
+Alternative map merging strategy for specific scenarios.
+
+## Sim3 Computation
+
+The class uses Sim3 (3D similarity transformation) which includes:
+- **Rotation**: 3D rotation matrix
+- **Translation**: 3D translation vector
+- **Scale**: Scale factor (important for monocular SLAM)
+
+### DetectAndReffineSim3FromLastKF (Protected)
+
+```cpp
+bool DetectAndReffineSim3FromLastKF(KeyFrame* pCurrentKF, 
+                                    KeyFrame* pMatchedKF, 
+                                    g2o::Sim3 &gScw, 
+                                    int &nNumProjMatches,
+                                    std::vector<MapPoint*> &vpMPs, 
+                                    std::vector<MapPoint*> &vpMatchedMPs)
+```
+
+Detects and refines the Sim3 transformation between two keyframes.
+
+## Optimization Methods
+
+### CorrectLoop (Protected)
+
+```cpp
+void CorrectLoop()
+```
+
+Performs loop correction after a loop is detected:
+1. Stops local mapping
+2. Computes corrected poses for all keyframes
+3. Fuses map points
+4. Optimizes the pose graph (Essential Graph)
+5. Launches global bundle adjustment
+6. Resumes local mapping
+
+### SearchAndFuse (Protected)
+
+```cpp
+void SearchAndFuse(const KeyFrameAndPose &CorrectedPosesMap, 
+                  vector<MapPoint*> &vpMapPoints)
+void SearchAndFuse(const vector<KeyFrame*> &vConectedKFs, 
+                  vector<MapPoint*> &vpMapPoints)
+```
+
+Searches for and fuses duplicate map points after loop closure or map merging.
+
+## Thread Safety
+
+The LoopClosing class uses several mutexes for thread-safe operation:
+
+- `mMutexLoopQueue`: Protects the keyframe queue
+- `mMutexGBA`: Protects global BA state
+- `mMutexReset`: Protects reset requests
+- `mMutexFinish`: Protects finish requests
+
+## Configuration
+
+### Scale Fixing
+
+- **Fixed Scale** (`bFixScale = true`): For stereo/RGB-D where scale is observable
+- **Free Scale** (`bFixScale = false`): For monocular where scale is estimated
+
+### Loop Closing Activation
+
+```cpp
+bool mbActiveLC;  // Enable/disable loop closing
+```
+
+Loop closing can be disabled for scenarios where:
+- No loops are expected
+- Computational resources are limited
+- Real-time performance is critical
+
+## Performance Considerations
+
+### Covisibility Consistency
+
+```cpp
+float mnCovisibilityConsistencyTh;  // Consistency threshold
+```
+
+Higher values reduce false positives but may miss valid loops.
+
+### Global Bundle Adjustment
+
+Global BA is computationally expensive:
+- Runs in a separate thread to avoid blocking
+- Can be aborted if new loops are detected
+- Optional - system continues working without waiting for completion
+
+## Related Classes
+
+- [System](/api/system) - Main SLAM system interface  
+- [Tracking](/api/tracking) - Provides keyframes for loop detection
+- [LocalMapping](/api/local-mapping) - Coordinates with loop closing for map optimization

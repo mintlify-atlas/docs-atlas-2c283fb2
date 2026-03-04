@@ -1,0 +1,404 @@
+---
+title: Performance Tuning
+description: Optimize ORB-SLAM3 for real-time performance and accuracy
+---
+
+This guide covers techniques for optimizing ORB-SLAM3 performance for real-time operation and improved accuracy.
+
+## Compiler Optimization Flags
+
+### Build Type Configuration
+
+ORB-SLAM3 uses CMake build types to control optimization levels (CMakeLists.txt:10-13):
+
+```cmake
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS}  -Wall   -O3")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall   -O3")
+set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -march=native")
+set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -march=native")
+```
+
+<Note>
+The default build configuration uses `-O3` optimization and `-march=native` for architecture-specific optimizations.
+</Note>
+
+### Recommended Build Commands
+
+For maximum performance, build with Release mode:
+
+```bash
+cd ORB_SLAM3/build
+cmake .. -DCMAKE_BUILD_TYPE=Release
+make -j$(nproc)
+```
+
+<Tip>
+Use `-j$(nproc)` to parallelize compilation across all CPU cores, significantly reducing build time.
+</Tip>
+
+### Additional Optimization Flags
+
+For advanced users, consider these additional compiler flags:
+
+<Accordion title="Advanced GCC Optimization Flags">
+
+```cmake
+# Add to CMakeLists.txt for aggressive optimization
+set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3 -march=native -mtune=native")
+set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -ffast-math -funroll-loops")
+```
+
+**Warning**: `-ffast-math` may reduce numerical accuracy in some edge cases.
+
+</Accordion>
+
+## ORB Extractor Parameters
+
+The ORB feature extractor is a critical performance bottleneck. Tune these parameters in your YAML configuration:
+
+### Feature Count
+
+```yaml
+# ORB Extractor: Number of features per image
+ORBextractor.nFeatures: 1200
+```
+
+**Performance Impact**:
+- **Lower values (800-1000)**: Faster extraction, reduced accuracy
+- **Default (1200)**: Balanced performance
+- **Higher values (1500-2000)**: Better tracking, slower performance
+
+<Note>
+For real-time operation on embedded systems, reduce to 800-1000 features.
+</Note>
+
+### Scale Pyramid Configuration
+
+```yaml
+# ORB Extractor: Scale factor between levels in the scale pyramid
+ORBextractor.scaleFactor: 1.2
+
+# ORB Extractor: Number of levels in the scale pyramid
+ORBextractor.nLevels: 8
+```
+
+<Accordion title="Scale Factor Tuning Guidelines">
+
+**Scale Factor** (ORBextractor.h:96):
+- **1.2** (default): Fine-grained scale invariance, more levels
+- **1.5**: Coarser scales, fewer features, faster
+- **2.0**: Very coarse, fastest but less robust
+
+**Number of Levels**:
+- **8** (default): Good scale range
+- **6**: Faster, sufficient for most scenarios
+- **10+**: Better scale invariance, slower
+
+**Memory Impact**: Total features ≈ `nFeatures × (1 - scaleFactor^nLevels) / (1 - scaleFactor)`
+
+</Accordion>
+
+### FAST Threshold Parameters
+
+```yaml
+# ORB Extractor: Fast threshold
+ORBextractor.iniThFAST: 20
+ORBextractor.minThFAST: 7
+```
+
+<Tip>
+For **low-contrast environments** (e.g., indoor, night), reduce both thresholds:
+- `iniThFAST: 12`
+- `minThFAST: 5`
+</Tip>
+
+<Warning>
+Very low thresholds (< 5) may extract noise as features, degrading tracking quality.
+</Warning>
+
+## Threading and Real-Time Performance
+
+### Parallel Threads
+
+ORB-SLAM3 runs three main threads concurrently:
+
+1. **Tracking Thread**: Processes incoming frames
+2. **Local Mapping Thread**: Optimizes local map
+3. **Loop Closing Thread**: Detects and corrects loop closures
+
+<Accordion title="Thread Priority Configuration">
+
+For real-time systems, prioritize the tracking thread:
+
+```cpp
+// In your application code
+#include <pthread.h>
+
+// Set tracking thread priority (requires root or CAP_SYS_NICE)
+struct sched_param param;
+param.sched_priority = 90; // High priority
+pthread_setschedparam(tracking_thread, SCHED_FIFO, &param);
+```
+
+</Accordion>
+
+### Real-Time Considerations
+
+<Accordion title="Camera Frame Rate Configuration">
+
+```yaml
+# Camera frames per second
+Camera.fps: 20
+```
+
+**Guidelines**:
+- **20 FPS**: Standard for EuRoC dataset, good for most applications
+- **30 FPS**: Smoother tracking, requires faster hardware
+- **60+ FPS**: High-speed motion, challenging for real-time processing
+
+</Accordion>
+
+### Viewer Disabling
+
+For headless operation, disable the Pangolin viewer:
+
+```cpp
+// In System constructor
+ORB_SLAM3::System SLAM(argv[1], argv[2], 
+                       ORB_SLAM3::System::STEREO, 
+                       false);  // bUseViewer = false
+```
+
+<Tip>
+Disabling the viewer saves 10-20% CPU usage and is recommended for deployment.
+</Tip>
+
+## Time Measurement Tools
+
+### Enabling REGISTER_TIMES
+
+ORB-SLAM3 includes built-in profiling tools (Settings.h:24):
+
+```cpp
+// In include/Settings.h, uncomment:
+#define REGISTER_TIMES
+```
+
+Then rebuild:
+
+```bash
+cd build
+make clean
+make -j$(nproc)
+```
+
+### Performance Metrics Output
+
+With `REGISTER_TIMES` enabled, ORB-SLAM3 outputs:
+
+1. **Terminal Output**: Real-time performance statistics
+2. **ExecTimeMean.txt**: Detailed timing breakdown per component
+
+<Accordion title="Example ExecTimeMean.txt Output">
+
+```
+Tracking:
+  Total: 28.5 ms
+  ORB Extraction: 12.3 ms
+  Stereo Matching: 8.7 ms
+  Pose Optimization: 4.2 ms
+  
+Local Mapping:
+  Total: 45.2 ms
+  KeyFrame Insertion: 15.3 ms
+  Map Point Culling: 8.9 ms
+  Local BA: 18.7 ms
+
+Loop Closing:
+  Total: 180.3 ms (when triggered)
+```
+
+</Accordion>
+
+<Note>
+Use these timing measurements to identify bottlenecks in your specific deployment scenario.
+</Note>
+
+## Hardware Recommendations
+
+### Minimum Requirements
+
+From README.md:54:
+> A powerful computer (e.g. i7) will ensure real-time performance and provide more stable and accurate results.
+
+### Recommended Hardware Specifications
+
+<Accordion title="CPU Requirements">
+
+**Minimum**:
+- Intel Core i5 (4 cores) or equivalent
+- 2.5 GHz base frequency
+
+**Recommended**:
+- Intel Core i7/i9 (6+ cores)
+- 3.0+ GHz base frequency
+- Support for AVX2 instructions
+
+**Optimal**:
+- AMD Ryzen 7/9 or Intel i9 (8+ cores)
+- 3.5+ GHz boost frequency
+- Good single-thread performance for tracking
+
+</Accordion>
+
+<Accordion title="Memory Requirements">
+
+| Configuration | Minimum RAM | Recommended RAM |
+|--------------|-------------|------------------|
+| Monocular    | 2 GB        | 4 GB            |
+| Stereo       | 4 GB        | 8 GB            |
+| RGB-D        | 4 GB        | 8 GB            |
+| Multi-Map    | 8 GB        | 16 GB           |
+
+<Warning>
+Large-scale mapping sessions (10,000+ keyframes) may require 32+ GB RAM.
+</Warning>
+
+</Accordion>
+
+<Accordion title="GPU Acceleration">
+
+ORB-SLAM3 does not natively use GPU acceleration. However:
+
+**OpenCV GPU Modules**:
+- Compile OpenCV with CUDA support
+- Some image processing operations will automatically use GPU
+- Benefit varies (typically 10-30% speedup)
+
+**Custom GPU Implementation**:
+- ORB extraction can be parallelized on GPU
+- Requires custom implementation using CUDA
+- Can achieve 2-3× speedup for feature extraction
+
+</Accordion>
+
+## Platform-Specific Optimizations
+
+### Linux Performance Tuning
+
+<Accordion title="CPU Governor Settings">
+
+```bash
+# Set performance governor for maximum CPU frequency
+sudo cpupower frequency-set -g performance
+
+# Or for all cores:
+for cpu in /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor; do
+    echo performance | sudo tee $cpu
+done
+```
+
+</Accordion>
+
+### Embedded Systems (ARM/Jetson)
+
+<Accordion title="NVIDIA Jetson Optimization">
+
+```bash
+# Enable maximum performance mode
+sudo nvpmodel -m 0
+sudo jetson_clocks
+
+# Reduce feature count for real-time performance
+ORBextractor.nFeatures: 800
+ORBextractor.nLevels: 6
+```
+
+**Expected Performance**:
+- Jetson Xavier NX: 15-20 FPS (stereo)
+- Jetson AGX Orin: 25-30 FPS (stereo)
+
+</Accordion>
+
+## Performance Benchmarking
+
+### Measuring Tracking FPS
+
+Add timing code to your application:
+
+```cpp
+#include <chrono>
+
+auto t1 = chrono::steady_clock::now();
+SLAM.TrackStereo(imLeft, imRight, timestamp);
+auto t2 = chrono::steady_clock::now();
+
+double ttrack = chrono::duration_cast<chrono::duration<double>>(t2 - t1).count();
+cout << "Tracking time: " << ttrack*1000 << " ms (" 
+     << 1.0/ttrack << " FPS)" << endl;
+```
+
+### Expected Performance Metrics
+
+| Configuration | Target FPS | Typical Tracking Time |
+|--------------|-----------|----------------------|
+| Monocular    | 20-30     | 30-50 ms            |
+| Stereo       | 15-25     | 40-65 ms            |
+| Stereo-Inertial | 20-30  | 33-50 ms            |
+| RGB-D        | 20-30     | 33-50 ms            |
+
+<Note>
+These metrics assume an Intel i7 processor with recommended ORB parameters.
+</Note>
+
+## Troubleshooting Performance Issues
+
+<Accordion title="Slow Feature Extraction">
+
+**Symptoms**: ORB extraction takes > 20ms per frame
+
+**Solutions**:
+1. Reduce `ORBextractor.nFeatures` to 800-1000
+2. Reduce `ORBextractor.nLevels` to 6
+3. Increase `ORBextractor.iniThFAST` to 25-30
+4. Check image resolution (resize to 640×480 if larger)
+
+</Accordion>
+
+<Accordion title="Frame Dropping">
+
+**Symptoms**: System cannot process all incoming frames
+
+**Solutions**:
+1. Disable viewer for headless operation
+2. Reduce camera frame rate
+3. Increase CPU frequency/thermal limits
+4. Skip frames in application code if tracking is lost
+
+</Accordion>
+
+<Accordion title="High Memory Usage">
+
+**Symptoms**: RAM usage grows continuously
+
+**Solutions**:
+1. Enable map point culling (enabled by default)
+2. Limit maximum number of keyframes
+3. Reduce feature count
+4. Implement periodic map saving and clearing
+
+</Accordion>
+
+## Best Practices Summary
+
+1. **Build with Release mode** and `-march=native`
+2. **Tune ORB parameters** for your hardware and environment
+3. **Disable viewer** in production deployments
+4. **Enable REGISTER_TIMES** during development to identify bottlenecks
+5. **Use performance CPU governor** on Linux systems
+6. **Monitor tracking FPS** to ensure real-time operation
+7. **Test with your target dataset** before deployment
+
+<Tip>
+Start with default parameters and tune iteratively based on profiling results.
+</Tip>

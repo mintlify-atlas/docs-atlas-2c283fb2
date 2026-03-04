@@ -1,0 +1,528 @@
+---
+title: 'IMU Integration'
+description: 'Visual-inertial fusion and IMU preintegration in ORB-SLAM3'
+icon: 'gauge-high'
+---
+
+## Overview
+
+ORB-SLAM3 implements sophisticated **visual-inertial fusion**, integrating IMU (Inertial Measurement Unit) data with visual features to achieve:
+
+<CardGroup cols={2}>
+  <Card title="Metric Scale" icon="ruler">
+    Recovers absolute scale without scale ambiguity, even in monocular mode.
+  </Card>
+  <Card title="Robustness" icon="shield">
+    Handles fast motion, temporary occlusions, and texture-poor environments.
+  </Card>
+  <Card title="Gravity Estimation" icon="earth-americas">
+    Estimates gravity direction and magnitude for consistent world frame.
+  </Card>
+  <Card title="Velocity Estimation" icon="gauge">
+    Provides camera velocity for motion prediction and feature tracking.
+  </Card>
+</CardGroup>
+
+<Info>
+The visual-inertial system is based on the paper **"Inertial-Only Optimization for Visual-Inertial Initialization"** (ICRA 2020) and **"Visual-inertial monocular SLAM with map reuse"** (RA-L 2017).
+</Info>
+
+## IMU Data Structures
+
+All IMU-related types are defined in `include/ImuTypes.h:40-262`.
+
+### IMU Measurement Point
+
+Represents a single IMU measurement with accelerometer, gyroscope, and timestamp:
+
+```cpp
+class IMU::Point
+{
+public:
+    Point(const float &acc_x, const float &acc_y, const float &acc_z,
+          const float &ang_vel_x, const float &ang_vel_y, const float &ang_vel_z,
+          const double &timestamp);
+    
+    Point(const cv::Point3f Acc, const cv::Point3f Gyro, const double &timestamp);
+    
+    Eigen::Vector3f a;  // Accelerometer (m/s²)
+    Eigen::Vector3f w;  // Gyroscope (rad/s)
+    double t;           // Timestamp (seconds)
+};
+```
+
+<CodeGroup>
+```cpp Creating IMU Points
+// Constructor with individual components
+IMU::Point imu1(ax, ay, az, wx, wy, wz, timestamp);
+
+// Constructor with cv::Point3f
+cv::Point3f acc(ax, ay, az);
+cv::Point3f gyro(wx, wy, wz);
+IMU::Point imu2(acc, gyro, timestamp);
+
+// Vector of measurements between frames
+vector<IMU::Point> vImuMeas;
+vImuMeas.push_back(imu1);
+vImuMeas.push_back(imu2);
+```
+
+```cpp Using in Tracking
+// Accumulate IMU measurements
+vector<IMU::Point> vImuMeas;
+while(imu_available) {
+    vImuMeas.push_back(IMU::Point(ax, ay, az, wx, wy, wz, t));
+}
+
+// Pass to tracking
+Sophus::SE3f Tcw = SLAM.TrackMonocular(im, timestamp, vImuMeas);
+```
+</CodeGroup>
+
+### IMU Bias
+
+Accelerometer and gyroscope biases that are estimated and refined over time:
+
+```cpp
+class IMU::Bias
+{
+public:
+    Bias();
+    Bias(const float &b_acc_x, const float &b_acc_y, const float &b_acc_z,
+         const float &b_ang_vel_x, const float &b_ang_vel_y, const float &b_ang_vel_z);
+    
+    float bax, bay, baz;  // Accelerometer bias (m/s²)
+    float bwx, bwy, bwz;  // Gyroscope bias (rad/s)
+};
+```
+
+<Note>
+Biases are **automatically estimated** during IMU initialization and continuously refined. You don't need to provide them manually.
+</Note>
+
+### IMU Calibration
+
+Stores IMU-camera extrinsic calibration and noise parameters:
+
+```cpp
+class IMU::Calib
+{
+public:
+    Calib(const Sophus::SE3<float> &Tbc, 
+          const float &ng,   // Gyroscope noise
+          const float &na,   // Accelerometer noise  
+          const float &ngw,  // Gyroscope random walk
+          const float &naw); // Accelerometer random walk
+    
+    Sophus::SE3<float> mTcb;  // Transform: Camera to Body (IMU)
+    Sophus::SE3<float> mTbc;  // Transform: Body (IMU) to Camera
+    Eigen::DiagonalMatrix<float,6> Cov;      // Measurement covariance
+    Eigen::DiagonalMatrix<float,6> CovWalk;  // Random walk covariance
+};
+```
+
+## IMU Preintegration
+
+ORB-SLAM3 uses **IMU preintegration** to efficiently integrate high-frequency IMU data between keyframes.
+
+### Preintegrated Class
+
+The core preintegration class defined in `include/ImuTypes.h:143-251`:
+
+```cpp
+class IMU::Preintegrated
+{
+public:
+    Preintegrated(const Bias &b_, const Calib &calib);
+    
+    // Integrate new measurement
+    void IntegrateNewMeasurement(const Eigen::Vector3f &acceleration, 
+                                  const Eigen::Vector3f &angVel, 
+                                  const float &dt);
+    
+    // Recompute integration with updated bias
+    void Reintegrate();
+    
+    // Get preintegrated values
+    Eigen::Matrix3f GetDeltaRotation(const Bias &b_);
+    Eigen::Vector3f GetDeltaVelocity(const Bias &b_);
+    Eigen::Vector3f GetDeltaPosition(const Bias &b_);
+    
+    float dT;  // Total integration time
+    
+    // Preintegrated measurements (relative to initial bias)
+    Eigen::Matrix3f dR;   // Rotation delta
+    Eigen::Vector3f dV;   // Velocity delta  
+    Eigen::Vector3f dP;   // Position delta
+    
+    // Jacobians for bias correction
+    Eigen::Matrix3f JRg, JVg, JVa, JPg, JPa;
+    
+    // Covariance and information matrix
+    Eigen::Matrix<float,15,15> C;     // Covariance
+    Eigen::Matrix<float,15,15> Info;  // Information matrix
+};
+```
+
+### Preintegration Workflow
+
+<Steps>
+  <Step title="Initialize Preintegration">
+    Create preintegration object with initial bias and calibration:
+    ```cpp
+    IMU::Bias b0;  // Initial bias (zero or from previous)
+    IMU::Calib calib(Tbc, ng, na, ngw, naw);
+    IMU::Preintegrated* pImuPreint = new IMU::Preintegrated(b0, calib);
+    ```
+  </Step>
+  
+  <Step title="Integrate Measurements">
+    For each IMU measurement between frames:
+    ```cpp
+    for(auto &imu : vImuMeas) {
+        pImuPreint->IntegrateNewMeasurement(imu.a, imu.w, dt);
+    }
+    ```
+  </Step>
+  
+  <Step title="Use in Optimization">
+    Preintegrated values provide constraints in bundle adjustment:
+    ```cpp
+    Eigen::Matrix3f dR = pImuPreint->GetDeltaRotation(currentBias);
+    Eigen::Vector3f dV = pImuPreint->GetDeltaVelocity(currentBias);
+    Eigen::Vector3f dP = pImuPreint->GetDeltaPosition(currentBias);
+    ```
+  </Step>
+  
+  <Step title="Update Bias">
+    When bias estimate changes, efficiently update preintegration:
+    ```cpp
+    pImuPreint->SetNewBias(updatedBias);
+    // Uses Jacobians for fast recomputation
+    ```
+  </Step>
+</Steps>
+
+## IMU Initialization
+
+Visual-inertial initialization is a critical phase that estimates scale, gravity, and initial velocities.
+
+### Initialization Sequence
+
+<Tabs>
+  <Tab title="Phase 1: Visual Init">
+    **Duration:** First few frames
+    
+    1. Initialize visual SLAM (map with scale ambiguity)
+    2. Accumulate IMU measurements
+    3. Create initial keyframes
+    
+    <Info>
+    During this phase, the system operates in **visual-only mode** until sufficient motion and IMU data are available.
+    </Info>
+  </Tab>
+  
+  <Tab title="Phase 2: Coarse IMU Init">
+    **Duration:** ~2 seconds
+    
+    1. Estimate gravity direction from accelerometer
+    2. Align visual map with gravity
+    3. Compute initial scale (scale error < 5%)
+    4. Initialize velocity and bias
+    
+    <Check>
+    After this phase, **metric scale** is available and the system can use IMU for tracking prediction.
+    </Check>
+  </Tab>
+  
+  <Tab title="Phase 3: Refined IMU Init">
+    **Duration:** 2-15 seconds total
+    
+    1. Refine scale estimate with more data
+    2. Improve bias estimation
+    3. Optimize velocity estimates
+    4. Achieve scale error ~1%
+    
+    <Check>
+    System is fully initialized with high-accuracy metric scale and bias estimates.
+    </Check>
+  </Tab>
+</Tabs>
+
+### Checking Initialization Status
+
+```cpp
+// Check if IMU is initialized
+if(mpAtlas->isImuInitialized()) {
+    // Scale, gravity, and velocity are available
+    // Full visual-inertial tracking active
+} else {
+    // Still initializing
+    // System may be running visual-only tracking
+}
+```
+
+## Gravity Constant
+
+The expected gravity magnitude is defined in `include/ImuTypes.h:43`:
+
+```cpp
+const float GRAVITY_VALUE = 9.81;  // m/s²
+```
+
+<Note>
+This value is used as a prior during initialization. The actual gravity magnitude and direction are estimated from IMU measurements.
+</Note>
+
+## IMU Configuration
+
+IMU parameters are specified in the YAML settings file:
+
+<CodeGroup>
+```yaml IMU Calibration
+# IMU sensor
+IMU.NoiseGyro: 1.6968e-04    # rad/s/√Hz
+IMU.NoiseAcc: 2.0000e-3       # m/s²/√Hz  
+IMU.GyroWalk: 1.9393e-05      # rad/s²/√Hz
+IMU.AccWalk: 3.0000e-03       # m/s³/√Hz
+IMU.Frequency: 200            # Hz
+```
+
+```yaml IMU-Camera Extrinsics
+# Transformation from camera to IMU (Tbc)
+IMU.T_b_c1: !!opencv-matrix
+   rows: 4
+   cols: 4
+   dt: f
+   data: [1.0, 0.0, 0.0, 0.0,
+          0.0, 1.0, 0.0, 0.0,
+          0.0, 0.0, 1.0, 0.0,
+          0.0, 0.0, 0.0, 1.0]
+```
+
+```yaml IMU Initialization
+# Initialization parameters  
+IMU.InsertKFsWhenLost: 1      # Insert KFs during tracking loss
+IMU.MaxFrames: 1000           # Max frames for initialization
+```
+</CodeGroup>
+
+### Noise Parameters
+
+<ResponseField name="NoiseGyro" type="float" required>
+  Gyroscope measurement noise density (rad/s/√Hz). Obtain from IMU datasheet or calibration.
+</ResponseField>
+
+<ResponseField name="NoiseAcc" type="float" required>
+  Accelerometer measurement noise density (m/s²/√Hz).
+</ResponseField>
+
+<ResponseField name="GyroWalk" type="float" required>
+  Gyroscope random walk (rad/s²/√Hz). Models bias drift over time.
+</ResponseField>
+
+<ResponseField name="AccWalk" type="float" required>
+  Accelerometer random walk (m/s³/√Hz).
+</ResponseField>
+
+<Tip>
+**Finding noise parameters:** Check your IMU datasheet or use calibration tools like Allan variance analysis to determine accurate noise values.
+</Tip>
+
+## Integration with Visual Tracking
+
+### Motion Prediction
+
+IMU provides motion prediction for the next frame:
+
+```cpp
+// Predict camera pose using IMU integration
+Sophus::SE3f Tcw_predicted = PredictNavStateFromIMU();
+
+// Use prediction to guide feature search
+SearchFeaturesInPredictedRegion(Tcw_predicted);
+```
+
+### Visual-Inertial Optimization
+
+The system jointly optimizes visual and inertial terms:
+
+```
+E_total = E_visual + E_inertial
+
+E_visual = Σ ρ(|| z_i - π(T_cw * X_i) ||²)
+E_inertial = Σ || r_imu(T_i, T_j, v_i, v_j, b) ||²_Σ
+```
+
+Where:
+- `E_visual`: Reprojection error from visual features
+- `E_inertial`: Preintegrated IMU residuals
+- `ρ`: Robust cost function (Huber)
+- `π`: Camera projection function
+- `r_imu`: IMU preintegration residual
+
+## Integrated Rotation
+
+Helper class for integrating single gyroscope measurements:
+
+```cpp
+class IMU::IntegratedRotation
+{
+public:
+    IntegratedRotation(const Eigen::Vector3f &angVel, 
+                       const Bias &imuBias, 
+                       const float &time);
+    
+    float deltaT;               // Integration time
+    Eigen::Matrix3f deltaR;     // Rotation delta
+    Eigen::Matrix3f rightJ;     // Right Jacobian
+};
+```
+
+Used internally during preintegration for rotation updates.
+
+## Lie Algebra Functions
+
+Utility functions for SO(3) operations defined in `include/ImuTypes.h:254-260`:
+
+```cpp
+// Right Jacobian of SO(3)
+Eigen::Matrix3f RightJacobianSO3(const Eigen::Vector3f &v);
+Eigen::Matrix3f RightJacobianSO3(const float &x, const float &y, const float &z);
+
+// Inverse Right Jacobian
+Eigen::Matrix3f InverseRightJacobianSO3(const Eigen::Vector3f &v);
+Eigen::Matrix3f InverseRightJacobianSO3(const float &x, const float &y, const float &z);
+
+// Normalize rotation matrix
+Eigen::Matrix3f NormalizeRotation(const Eigen::Matrix3f &R);
+```
+
+<Info>
+These functions are used for manifold operations during optimization on the SO(3) rotation group.
+</Info>
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="IMU Data Collection">
+    - **High frequency:** Use IMU at 100-200 Hz (much higher than camera frame rate)
+    - **All measurements:** Provide ALL IMU samples between consecutive frames
+    - **Synchronization:** Ensure accurate time synchronization between camera and IMU
+    - **Coordinate frames:** Ensure IMU measurements are in the correct body frame
+  </Accordion>
+  
+  <Accordion title="Calibration Quality">
+    - **Extrinsic calibration:** Accurately calibrate IMU-camera transformation (Tbc)
+    - **Temporal calibration:** Estimate time offset between sensors
+    - **Noise parameters:** Use accurate noise values from datasheet or Allan variance
+    - **Verify calibration:** Test with known motions to validate setup
+  </Accordion>
+  
+  <Accordion title="Initialization">
+    - **Initial motion:** Perform slow, smooth motion for first 2-3 seconds
+    - **Sufficient excitation:** Ensure rotation and translation for observability
+    - **Wait for completion:** Check `isImuInitialized()` before relying on scale
+    - **Avoid aggressive motion:** During initialization, avoid fast rotations
+  </Accordion>
+  
+  <Accordion title="Runtime Considerations">
+    - **Bias drift:** Long-term bias drift is automatically tracked and corrected
+    - **Temperature effects:** Some IMUs drift with temperature changes
+    - **Magnetic interference:** Keep IMU away from magnetic sources
+    - **Vibrations:** Mount IMU rigidly to camera to avoid vibration noise
+  </Accordion>
+</AccordionGroup>
+
+## Coordinate Frames
+
+<CardGroup cols={2}>
+  <Card title="Camera Frame (C)" icon="camera">
+    - Origin at camera optical center
+    - Z-axis pointing forward (viewing direction)
+    - X-axis pointing right, Y-axis pointing down
+  </Card>
+  
+  <Card title="Body Frame (B/IMU)" icon="compass">
+    - Origin at IMU center
+    - Axes follow IMU orientation
+    - Related to camera by Tbc transformation
+  </Card>
+  
+  <Card title="World Frame (W)" icon="earth-americas">
+    - Aligned with gravity (Z-axis up or down)
+    - Arbitrary horizontal orientation
+    - Established during initialization
+  </Card>
+  
+  <Card title="Navigation Frame (N)" icon="location-arrow">
+    - East-North-Up or similar
+    - Used for expressing poses and velocities
+    - Related to world frame by rotation
+  </Card>
+</CardGroup>
+
+## Performance Benefits
+
+<CardGroup cols={3}>
+  <Card title="Fast Motion" icon="rocket">
+    IMU prediction enables tracking during rapid camera motion (>10 m/s linear, >200°/s angular).
+  </Card>
+  
+  <Card title="Occlusions" icon="eye-slash">
+    Maintains pose estimate during temporary visual feature loss using inertial integration.
+  </Card>
+  
+  <Card title="Scale Accuracy" icon="ruler-combined">
+    Achieves less than 1% scale error in monocular mode, comparable to stereo systems.
+  </Card>
+</CardGroup>
+
+## Related Topics
+
+<CardGroup cols={2}>
+  <Card title="Sensor Modes" icon="camera-viewfinder" href="/concepts/sensor-modes">
+    Visual-inertial sensor mode configurations
+  </Card>
+  <Card title="Calibration" icon="wrench" href="/guides/calibration">
+    IMU-camera calibration procedures
+  </Card>
+  <Card title="Configuration" icon="file-code" href="/configuration/settings-file">
+    YAML settings for IMU parameters
+  </Card>
+  <Card title="EuRoC Examples" icon="play" href="/examples/euroc-dataset">
+    Running visual-inertial examples
+  </Card>
+</CardGroup>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Initialization Fails">
+    - **Insufficient motion:** Ensure camera moves with rotation and translation
+    - **Poor calibration:** Verify Tbc extrinsic calibration
+    - **Wrong noise values:** Check IMU noise parameters in config
+    - **Too fast motion:** Slow down during first 2-3 seconds
+  </Accordion>
+  
+  <Accordion title="Scale Drift">
+    - **Poor IMU quality:** Low-cost IMUs may have significant bias drift
+    - **Long sequences:** Scale drift accumulates over time without loops
+    - **Temperature changes:** Some IMUs are temperature sensitive
+    - **Insufficient visual constraints:** Ensure good feature tracking
+  </Accordion>
+  
+  <Accordion title="Tracking Loss with IMU">
+    - **Calibration errors:** Large Tbc errors cause divergence
+    - **Time synchronization:** Ensure accurate timestamps
+    - **Coordinate frame mismatch:** Verify IMU axes orientation
+    - **IMU saturation:** Check for gyro/accelerometer saturation
+  </Accordion>
+</AccordionGroup>
+
+## Advanced Topics
+
+- **Bias estimation:** Continuous bias refinement during operation
+- **Scale observability:** Conditions for scale estimation in monocular-inertial
+- **Covariance propagation:** Uncertainty tracking through preintegration
+- **Manifold optimization:** SO(3) optimization for rotation states

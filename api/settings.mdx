@@ -1,0 +1,441 @@
+---
+title: 'Settings'
+description: 'Configuration loader for ORB-SLAM3 system parameters'
+---
+
+## Overview
+
+`Settings` is the configuration management class that loads and provides access to all system parameters from YAML configuration files. It handles camera calibration, ORB feature settings, IMU parameters, viewer options, and sensor-specific configurations.
+
+**Header:** `Settings.h`
+
+**Namespace:** `ORB_SLAM3`
+
+## Constructor
+
+```cpp
+Settings(const std::string &configFile, const int &sensor)
+```
+
+Load settings from YAML configuration file.
+
+**Parameters:**
+- `configFile` - Path to YAML configuration file
+- `sensor` - Sensor type (MONOCULAR, STEREO, RGBD, IMU_MONOCULAR, IMU_STEREO, IMU_RGBD)
+
+**Note:** Default constructor is deleted; must construct with config file.
+
+## Camera Type Enum
+
+```cpp
+enum CameraType {
+    PinHole = 0,
+    Rectified = 1,
+    KannalaBrandt = 2
+}
+```
+
+Defines supported camera model types.
+
+## Camera Settings
+
+### Camera Type and Models
+
+```cpp
+CameraType cameraType()
+```
+Get the camera type.
+
+```cpp
+GeometricCamera* camera1()
+```
+Get the primary camera model (or left camera in stereo).
+
+```cpp
+GeometricCamera* camera2()
+```
+Get the secondary camera model (right camera in stereo).
+
+**Returns:** Pointer to [Pinhole](/api/pinhole) or [KannalaBrandt8](/api/kannala-brandt) camera.
+
+### Distortion Coefficients
+
+```cpp
+cv::Mat camera1DistortionCoef()
+```
+
+```cpp
+cv::Mat camera2DistortionCoef()
+```
+
+Get distortion coefficients for pinhole cameras (radial-tangential model).
+
+**Returns:** OpenCV matrix of distortion coefficients.
+
+### Image Processing Flags
+
+```cpp
+bool needToUndistort()
+```
+Check if images need undistortion.
+
+```cpp
+bool needToResize()
+```
+Check if images need resizing.
+
+```cpp
+bool needToRectify()
+```
+Check if stereo images need rectification.
+
+### Image Properties
+
+```cpp
+cv::Size newImSize()
+```
+Get target image size after preprocessing.
+
+```cpp
+float fps()
+```
+Get camera frame rate (frames per second).
+
+```cpp
+bool rgb()
+```
+Check if images are RGB (true) or BGR (false).
+
+## Stereo Settings
+
+### Baseline and Stereo Transform
+
+```cpp
+Sophus::SE3f Tlr()
+```
+Get transform from left to right camera.
+
+```cpp
+float bf()
+```
+Get baseline × focal length product (used for depth computation).
+
+```cpp
+float b()
+```
+Get stereo baseline in meters.
+
+### Depth Threshold
+
+```cpp
+float thDepth()
+```
+Get depth threshold for far/close point classification.
+
+**Returns:** Threshold in meters (typically 40 × baseline).
+
+### Rectification Maps
+
+```cpp
+cv::Mat M1l()
+cv::Mat M2l()
+cv::Mat M1r()
+cv::Mat M2r()
+```
+
+Get rectification maps for left (l) and right (r) cameras.
+
+**Returns:** OpenCV remap matrices (M1 = x map, M2 = y map).
+
+## IMU Settings
+
+Relevant for IMU-enabled modes (IMU_MONOCULAR, IMU_STEREO, IMU_RGBD).
+
+### Noise Parameters
+
+```cpp
+float noiseGyro()
+```
+Get gyroscope noise density (rad/s/√Hz).
+
+```cpp
+float noiseAcc()
+```
+Get accelerometer noise density (m/s²/√Hz).
+
+### Random Walk
+
+```cpp
+float gyroWalk()
+```
+Get gyroscope random walk (rad/s²/√Hz).
+
+```cpp
+float accWalk()
+```
+Get accelerometer random walk (m/s³/√Hz).
+
+### IMU Properties
+
+```cpp
+float imuFrequency()
+```
+Get IMU sampling frequency (Hz).
+
+```cpp
+Sophus::SE3f Tbc()
+```
+Get transform from IMU body frame to camera frame.
+
+### Tracking Behavior
+
+```cpp
+bool insertKFsWhenLost()
+```
+Check if keyframes should be inserted when tracking is lost.
+
+## RGBD Settings
+
+```cpp
+float depthMapFactor()
+```
+Get depth scaling factor (converts depth image values to meters).
+
+**Example:** If depth is in mm, factor = 1000.0 or 5000.0.
+
+## ORB Feature Settings
+
+### Feature Parameters
+
+```cpp
+int nFeatures()
+```
+Get number of ORB features to extract per frame.
+
+**Default:** Typically 1000-2000.
+
+```cpp
+float scaleFactor()
+```
+Get pyramid scale factor between levels.
+
+**Default:** Typically 1.2.
+
+```cpp
+int nLevels()
+```
+Get number of pyramid levels.
+
+**Default:** Typically 8.
+
+### FAST Thresholds
+
+```cpp
+float initThFAST()
+```
+Get initial FAST threshold.
+
+```cpp
+float minThFAST()
+```
+Get minimum FAST threshold (fallback if too few features detected).
+
+## Viewer Settings
+
+### Display Scales
+
+```cpp
+float keyFrameSize()
+```
+Keyframe visualization size.
+
+```cpp
+float keyFrameLineWidth()
+```
+Keyframe edge line width.
+
+```cpp
+float graphLineWidth()
+```
+Covisibility graph line width.
+
+```cpp
+float pointSize()
+```
+Map point visualization size.
+
+```cpp
+float cameraSize()
+```
+Camera frustum size.
+
+```cpp
+float cameraLineWidth()
+```
+Camera frustum line width.
+
+### Viewpoint
+
+```cpp
+float viewPointX()
+float viewPointY()
+float viewPointZ()
+float viewPointF()
+```
+
+Get initial viewpoint position (X, Y, Z) and focal length (F) for the 3D viewer.
+
+### Image Viewer
+
+```cpp
+float imageViewerScale()
+```
+Get image viewer display scale factor.
+
+## Map Save/Load
+
+```cpp
+std::string atlasLoadFile()
+```
+Get path to load existing map atlas.
+
+```cpp
+std::string atlasSaveFile()
+```
+Get path to save map atlas.
+
+## Other Parameters
+
+```cpp
+float thFarPoints()
+```
+Get threshold for far points (used in certain tracking scenarios).
+
+## Stream Output
+
+```cpp
+friend std::ostream& operator<<(std::ostream &output, const Settings &s)
+```
+
+Output all settings to stream for debugging.
+
+**Usage:**
+```cpp
+Settings settings("config.yaml", System::STEREO);
+std::cout << settings << std::endl;
+```
+
+## Usage Example
+
+```cpp
+#include "Settings.h"
+#include "System.h"
+
+// Load settings
+Settings settings("config.yaml", ORB_SLAM3::System::IMU_STEREO);
+
+// Camera parameters
+GeometricCamera* cam1 = settings.camera1();
+GeometricCamera* cam2 = settings.camera2();
+float baseline = settings.b();
+
+// IMU parameters
+if (settings.sensor_ >= System::IMU_MONOCULAR) {
+    float gyro_noise = settings.noiseGyro();
+    float acc_noise = settings.noiseAcc();
+    Sophus::SE3f Tbc = settings.Tbc();
+}
+
+// ORB parameters
+int num_features = settings.nFeatures();
+float scale_factor = settings.scaleFactor();
+int num_levels = settings.nLevels();
+
+// Print all settings
+std::cout << settings;
+```
+
+## YAML Configuration Structure
+
+The Settings class reads from YAML files with the following sections:
+
+### Camera Section
+```yaml
+Camera.type: "PinHole" or "KannalaBrandt"
+Camera1.fx: 458.654
+Camera1.fy: 457.296
+Camera1.cx: 367.215
+Camera1.cy: 248.375
+# Pinhole distortion (optional)
+Camera1.k1: -0.28340811
+Camera1.k2: 0.07395907
+# Fisheye distortion (KB8)
+Camera1.k3: 0.0
+Camera1.k4: 0.0
+```
+
+### Stereo Section
+```yaml
+Stereo.ThDepth: 40.0
+Stereo.b: 0.0573
+# Stereo rectification
+LEFT.D: [distortion coefficients]
+LEFT.K: [3x3 intrinsic matrix]
+```
+
+### IMU Section
+```yaml
+IMU.NoiseGyro: 0.01
+IMU.NoiseAcc: 0.1
+IMU.GyroWalk: 0.0001
+IMU.AccWalk: 0.001
+IMU.Frequency: 200
+# IMU-Camera extrinsics (4x4 matrix)
+Tbc: !!opencv-matrix
+  rows: 4
+  cols: 4
+  data: [... 16 values ...]
+```
+
+### ORB Section
+```yaml
+ORBextractor.nFeatures: 1000
+ORBextractor.scaleFactor: 1.2
+ORBextractor.nLevels: 8
+ORBextractor.iniThFAST: 20
+ORBextractor.minThFAST: 7
+```
+
+### Viewer Section
+```yaml
+Viewer.KeyFrameSize: 0.05
+Viewer.KeyFrameLineWidth: 1.0
+Viewer.GraphLineWidth: 0.9
+Viewer.PointSize: 2.0
+Viewer.CameraSize: 0.08
+Viewer.CameraLineWidth: 3.0
+Viewer.ViewpointX: 0.0
+Viewer.ViewpointY: -0.7
+Viewer.ViewpointZ: -1.8
+Viewer.ViewpointF: 500.0
+```
+
+## Implementation Details
+
+The Settings class:
+- Uses OpenCV's FileStorage to parse YAML
+- Validates required parameters (exits if missing)
+- Supports optional parameters with defaults
+- Precomputes rectification maps for stereo
+- Creates appropriate camera model objects (Pinhole or KannalaBrandt8)
+
+## Thread Safety
+
+Settings objects are typically read-only after construction and can be safely shared across threads.
+
+## See Also
+
+- [System](/api/system) - Main SLAM system using Settings
+- [GeometricCamera](/api/geometric-camera) - Camera model interface
+- [IMU Types](/api/imu-types) - IMU structures and calibration
+- Example configuration files in `Examples/` directories

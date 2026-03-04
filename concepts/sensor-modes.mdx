@@ -1,0 +1,296 @@
+---
+title: 'Sensor Modes'
+description: 'Understanding the six sensor configurations supported by ORB-SLAM3'
+icon: 'camera-viewfinder'
+---
+
+## Overview
+
+ORB-SLAM3 supports **six different sensor modes**, combining three camera types (monocular, stereo, RGB-D) with optional IMU integration. Each mode is optimized for different hardware configurations and use cases.
+
+## Sensor Mode Enumeration
+
+The sensor modes are defined in `include/System.h:87-94`:
+
+```cpp
+enum eSensor{
+    MONOCULAR=0,
+    STEREO=1,
+    RGBD=2,
+    IMU_MONOCULAR=3,
+    IMU_STEREO=4,
+    IMU_RGBD=5,
+};
+```
+
+## Visual-Only Modes
+
+<Tabs>
+  <Tab title="Monocular">
+    ### Monocular Mode
+
+    Single camera tracking without depth information.
+
+    <CodeGroup>
+    ```cpp System Initialization
+    System SLAM(strVocFile, strSettingsFile, System::MONOCULAR, true);
+    ```
+
+    ```cpp Tracking
+    Sophus::SE3f Tcw = SLAM.TrackMonocular(im, timestamp);
+    ```
+    </CodeGroup>
+
+    **Characteristics:**
+    - **Scale ambiguity**: Map is computed up to an unknown scale factor
+    - **Initialization**: Requires sufficient parallax between first frames
+    - **Use cases**: Lightweight systems, drones, smartphones
+
+    <Warning>
+    Monocular SLAM cannot determine the absolute scale of the environment. The map scale is arbitrary.
+    </Warning>
+  </Tab>
+
+  <Tab title="Stereo">
+    ### Stereo Mode
+
+    Two synchronized cameras with known baseline provide depth information.
+
+    <CodeGroup>
+    ```cpp System Initialization
+    System SLAM(strVocFile, strSettingsFile, System::STEREO, true);
+    ```
+
+    ```cpp Tracking
+    Sophus::SE3f Tcw = SLAM.TrackStereo(imLeft, imRight, timestamp);
+    ```
+    </CodeGroup>
+
+    **Characteristics:**
+    - **Metric scale**: Accurate scale from camera baseline
+    - **Instant initialization**: No initialization sequence needed
+    - **Depth range**: Limited by baseline and resolution
+    - **Use cases**: Robotics, autonomous vehicles, outdoor navigation
+
+    <Info>
+    Stereo images must be **synchronized and rectified** (for pinhole cameras) before being passed to the system.
+    </Info>
+  </Tab>
+
+  <Tab title="RGB-D">
+    ### RGB-D Mode
+
+    RGB camera with aligned depth sensor (e.g., Kinect, RealSense D435i).
+
+    <CodeGroup>
+    ```cpp System Initialization
+    System SLAM(strVocFile, strSettingsFile, System::RGBD, true);
+    ```
+
+    ```cpp Tracking
+    Sophus::SE3f Tcw = SLAM.TrackRGBD(im, depthmap, timestamp);
+    ```
+    </CodeGroup>
+
+    **Characteristics:**
+    - **Dense depth**: Every pixel has depth information
+    - **Metric scale**: Accurate scale from depth sensor
+    - **Indoor focused**: Most depth sensors work best indoors
+    - **Use cases**: Indoor robotics, AR/VR, handheld scanning
+
+    <Note>
+    The depth map must be registered (aligned) to the RGB frame. Input format: RGB as `CV_8UC3` or grayscale as `CV_8U`, depth as `CV_32F`.
+    </Note>
+  </Tab>
+</Tabs>
+
+## Visual-Inertial Modes
+
+Visual-inertial modes combine camera input with IMU measurements for enhanced robustness and accuracy.
+
+<Tabs>
+  <Tab title="IMU Monocular">
+    ### IMU-Monocular Mode
+
+    Single camera with inertial sensor (accelerometer + gyroscope).
+
+    <CodeGroup>
+    ```cpp System Initialization
+    System SLAM(strVocFile, strSettingsFile, System::IMU_MONOCULAR, true);
+    ```
+
+    ```cpp Tracking
+    // Collect IMU measurements between frames
+    vector<IMU::Point> vImuMeas;
+    // ... populate vImuMeas ...
+    
+    Sophus::SE3f Tcw = SLAM.TrackMonocular(im, timestamp, vImuMeas);
+    ```
+    </CodeGroup>
+
+    **Characteristics:**
+    - **Metric scale**: IMU provides scale observability
+    - **Fast motion**: Handles rapid camera movements
+    - **Initialization**: 2-15 seconds for IMU initialization
+    - **Gravity estimation**: Estimates gravity direction and magnitude
+
+    <Check>
+    IMU-Monocular achieves **scale error < 5%** after 2 seconds of initialization, refined to ~1% within 15 seconds.
+    </Check>
+  </Tab>
+
+  <Tab title="IMU Stereo">
+    ### IMU-Stereo Mode
+
+    Stereo camera pair with inertial sensor.
+
+    <CodeGroup>
+    ```cpp System Initialization
+    System SLAM(strVocFile, strSettingsFile, System::IMU_STEREO, true);
+    ```
+
+    ```cpp Tracking
+    vector<IMU::Point> vImuMeas;
+    // ... populate IMU measurements ...
+    
+    Sophus::SE3f Tcw = SLAM.TrackStereo(imLeft, imRight, timestamp, vImuMeas);
+    ```
+    </CodeGroup>
+
+    **Characteristics:**
+    - **Dual scale sources**: Both stereo baseline and IMU
+    - **Maximum robustness**: Best performance in challenging conditions
+    - **Fast initialization**: Combines instant stereo init with IMU
+    - **Use cases**: Autonomous drones, aggressive robot motion
+  </Tab>
+
+  <Tab title="IMU RGB-D">
+    ### IMU-RGBD Mode
+
+    RGB-D sensor with inertial measurements.
+
+    <CodeGroup>
+    ```cpp System Initialization
+    System SLAM(strVocFile, strSettingsFile, System::IMU_RGBD, true);
+    ```
+
+    ```cpp Tracking
+    vector<IMU::Point> vImuMeas;
+    // ... populate IMU measurements ...
+    
+    Sophus::SE3f Tcw = SLAM.TrackRGBD(im, depthmap, timestamp, vImuMeas);
+    ```
+    </CodeGroup>
+
+    **Characteristics:**
+    - **Dense tracking**: Combines dense depth with inertial prediction
+    - **Occlusion robust**: IMU helps during visual feature loss
+    - **Use cases**: Handheld AR devices, indoor navigation
+  </Tab>
+</Tabs>
+
+## IMU Data Structure
+
+When using visual-inertial modes, IMU measurements are passed as `IMU::Point` objects defined in `include/ImuTypes.h:46-59`:
+
+```cpp
+class Point
+{
+public:
+    Point(const float &acc_x, const float &acc_y, const float &acc_z,
+          const float &ang_vel_x, const float &ang_vel_y, const float &ang_vel_z,
+          const double &timestamp);
+    
+    Eigen::Vector3f a;  // Accelerometer measurement (m/s²)
+    Eigen::Vector3f w;  // Gyroscope measurement (rad/s)
+    double t;           // Timestamp
+};
+```
+
+<CodeGroup>
+```cpp Creating IMU Measurements
+// Single measurement
+IMU::Point imu1(ax, ay, az, wx, wy, wz, timestamp);
+
+// Vector of measurements
+vector<IMU::Point> vImuMeas;
+vImuMeas.push_back(IMU::Point(ax1, ay1, az1, wx1, wy1, wz1, t1));
+vImuMeas.push_back(IMU::Point(ax2, ay2, az2, wx2, wy2, wz2, t2));
+```
+
+```cpp Using cv::Point3f
+// Alternative constructor
+cv::Point3f acc(ax, ay, az);
+cv::Point3f gyro(wx, wy, wz);
+IMU::Point imu(acc, gyro, timestamp);
+```
+</CodeGroup>
+
+## Comparison Matrix
+
+| Feature | Monocular | Stereo | RGB-D | IMU-Mono | IMU-Stereo | IMU-RGBD |
+|---------|-----------|--------|-------|----------|------------|----------|
+| **Metric Scale** | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| **Initialization Time** | Medium | Instant | Instant | 2-15s | Fast | 2-15s |
+| **Fast Motion** | ⚠️ | ⚠️ | ⚠️ | ✅ | ✅ | ✅ |
+| **Hardware Cost** | Low | Medium | Medium | Low | High | High |
+| **Outdoor Use** | ✅ | ✅ | ❌ | ✅ | ✅ | ⚠️ |
+| **Computational Cost** | Low | Medium | Medium | Medium | High | High |
+
+## Choosing the Right Mode
+
+<CardGroup cols={2}>
+  <Card title="Lightweight & Portable" icon="feather">
+    **Monocular** or **IMU-Monocular** for drones, smartphones, and resource-constrained devices.
+  </Card>
+  <Card title="High Accuracy" icon="crosshairs">
+    **Stereo** or **IMU-Stereo** for robotics applications requiring precise metric reconstruction.
+  </Card>
+  <Card title="Indoor Environments" icon="house">
+    **RGB-D** or **IMU-RGBD** for dense indoor mapping with depth sensors.
+  </Card>
+  <Card title="Fast Motion" icon="rocket">
+    Any **IMU mode** for aggressive motion, temporal occlusions, or challenging dynamics.
+  </Card>
+</CardGroup>
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Image Preprocessing">
+    - **Stereo**: Images must be synchronized and rectified (for pinhole models)
+    - **RGB-D**: Depth must be registered to RGB frame
+    - **All modes**: RGB images are automatically converted to grayscale
+    - Input formats: RGB (`CV_8UC3`) or grayscale (`CV_8U`)
+  </Accordion>
+
+  <Accordion title="IMU Integration">
+    - Provide **all IMU measurements** between consecutive frames
+    - Typical IMU rate: 100-200 Hz (much higher than camera frame rate)
+    - Ensure proper IMU-camera calibration (extrinsics and time offset)
+    - Configure noise parameters in settings file
+  </Accordion>
+
+  <Accordion title="Timing and Synchronization">
+    - Use consistent timestamp units (typically seconds)
+    - For IMU modes, timestamps must be accurately synchronized
+    - Account for any time offset between sensors
+  </Accordion>
+</AccordionGroup>
+
+## Related Topics
+
+<CardGroup cols={2}>
+  <Card title="Camera Models" icon="camera" href="/concepts/camera-models">
+    Configure pinhole or fisheye lens models for your sensors
+  </Card>
+  <Card title="IMU Integration" icon="gauge" href="/concepts/imu-integration">
+    Deep dive into IMU calibration and preintegration
+  </Card>
+  <Card title="Configuration Files" icon="file-code" href="/configuration/settings-file">
+    Set up YAML configuration for your sensor mode
+  </Card>
+  <Card title="Example Usage" icon="code" href="/examples/monocular">
+    See complete examples for each sensor mode
+  </Card>
+</CardGroup>

@@ -1,0 +1,501 @@
+---
+title: 'Camera Models'
+description: 'Pinhole and fisheye camera models in ORB-SLAM3'
+icon: 'camera'
+---
+
+## Overview
+
+ORB-SLAM3 supports two geometric camera models to handle different lens types:
+
+<CardGroup cols={2}>
+  <Card title="Pinhole" icon="square">
+    Standard perspective projection for traditional cameras and narrow field-of-view lenses.
+  </Card>
+  <Card title="Fisheye (Kannala-Brandt)" icon="circle">
+    Wide-angle and fisheye lenses with significant distortion, using the Kannala-Brandt model.
+  </Card>
+</CardGroup>
+
+Both models inherit from the base `GeometricCamera` class and provide projection, unprojection, and feature triangulation capabilities.
+
+## Pinhole Camera Model
+
+### Overview
+
+The Pinhole model implements standard perspective projection with radial and tangential distortion correction.
+
+**Definition:** `include/CameraModels/Pinhole.h:29-96`
+
+```cpp
+class Pinhole : public GeometricCamera {
+public:
+    Pinhole(const std::vector<float> _vParameters);
+    
+    cv::Point2f project(const cv::Point3f &p3D);
+    Eigen::Vector2d project(const Eigen::Vector3d &v3D);
+    cv::Point3f unproject(const cv::Point2f &p2D);
+    
+    cv::Mat toK();
+    bool ReconstructWithTwoViews(...);
+    bool epipolarConstrain(...);
+};
+```
+
+### Parameters
+
+The pinhole model uses **4 intrinsic parameters**:
+
+```cpp
+// Parameters vector: [fx, fy, cx, cy]
+```
+
+<ResponseField name="fx" type="float" required>
+  Focal length in x-direction (pixels)
+</ResponseField>
+
+<ResponseField name="fy" type="float" required>
+  Focal length in y-direction (pixels)
+</ResponseField>
+
+<ResponseField name="cx" type="float" required>
+  Principal point x-coordinate (pixels)
+</ResponseField>
+
+<ResponseField name="cy" type="float" required>
+  Principal point y-coordinate (pixels)
+</ResponseField>
+
+### Projection Model
+
+The pinhole projection follows the standard camera model:
+
+```
+3D Point (X, Y, Z) → 2D Image Point (u, v)
+
+u = fx * (X/Z) + cx
+v = fy * (Y/Z) + cy
+```
+
+<CodeGroup>
+```cpp Forward Projection
+// Project 3D point to 2D image
+cv::Point3f p3D(X, Y, Z);
+cv::Point2f p2D = camera->project(p3D);
+
+// Returns pixel coordinates (u, v)
+```
+
+```cpp Back Projection
+// Unproject 2D pixel to 3D ray
+cv::Point2f p2D(u, v);
+cv::Point3f ray = camera->unproject(p2D);
+
+// Returns normalized 3D direction (x, y, 1)
+```
+</CodeGroup>
+
+### Camera Matrix
+
+The intrinsic matrix K is constructed as:
+
+```cpp
+cv::Mat K = camera->toK();
+
+// Returns:
+// [ fx  0  cx ]
+// [  0 fy  cy ]
+// [  0  0   1 ]
+```
+
+### Configuration Example
+
+<CodeGroup>
+```yaml Monocular Pinhole
+Camera.type: "PinHole"
+
+# Intrinsic parameters
+Camera.fx: 458.654
+Camera.fy: 457.296
+Camera.cx: 367.215
+Camera.cy: 248.375
+
+# Distortion parameters (if using OpenCV model)
+Camera.k1: -0.28340811
+Camera.k2: 0.07395907
+Camera.p1: 0.00019359
+Camera.p2: 1.76187114e-05
+```
+
+```yaml Stereo Pinhole
+Camera.type: "PinHole"
+
+# Left camera intrinsics
+Camera1.fx: 435.2046
+Camera1.fy: 435.2046
+Camera1.cx: 367.4517
+Camera1.cy: 252.2008
+
+# Right camera intrinsics  
+Camera2.fx: 435.2046
+Camera2.fy: 435.2046
+Camera2.cx: 367.4517
+Camera2.cy: 252.2008
+
+# Stereo baseline
+Stereo.ThDepth: 40.0
+Stereo.b: 0.0573 # baseline in meters
+```
+</CodeGroup>
+
+### Use Cases
+
+<Check>
+**Use Pinhole model for:**
+- Standard cameras (webcams, DSLR, etc.)
+- Narrow to moderate field-of-view (less than 90 degrees)
+- Lenses with minimal distortion
+- EuRoC MAV dataset (stereo pinhole)
+</Check>
+
+## Fisheye Camera Model (Kannala-Brandt)
+
+### Overview
+
+The Kannala-Brandt8 model handles wide-angle and fisheye lenses with extreme distortion using a more sophisticated projection model.
+
+**Definition:** `include/CameraModels/KannalaBrandt8.h:30-111`
+
+```cpp
+class KannalaBrandt8 : public GeometricCamera {
+public:
+    KannalaBrandt8(const std::vector<float> _vParameters);
+    KannalaBrandt8(const std::vector<float> _vParameters, const float _precision);
+    
+    cv::Point2f project(const cv::Point3f &p3D);
+    Eigen::Vector2d project(const Eigen::Vector3d &v3D);
+    cv::Point3f unproject(const cv::Point2f &p2D);
+    
+    float TriangulateMatches(...);
+    bool matchAndtriangulate(...);
+    
+    float GetPrecision();
+};
+```
+
+### Parameters
+
+The Kannala-Brandt model uses **8 parameters**:
+
+```cpp
+// Parameters vector: [fx, fy, cx, cy, k0, k1, k2, k3]
+```
+
+<ResponseField name="fx, fy, cx, cy" type="float" required>
+  Standard intrinsic parameters (same as pinhole)
+</ResponseField>
+
+<ResponseField name="k0, k1, k2, k3" type="float" required>
+  Fisheye distortion coefficients modeling radial distortion
+</ResponseField>
+
+<ResponseField name="precision" type="float" default="1e-6">
+  Numerical precision for iterative unprojection
+</ResponseField>
+
+### Projection Model
+
+The fisheye model uses a polynomial approximation:
+
+```
+θ = atan(r)  where r = sqrt(X² + Y²) / Z
+θ_d = θ * (1 + k0*θ² + k1*θ⁴ + k2*θ⁶ + k3*θ⁸)
+
+u = fx * θ_d * (X/r) + cx
+v = fy * θ_d * (Y/r) + cy
+```
+
+<Info>
+The unprojection (2D → 3D) requires **iterative solving** due to the non-linear distortion model, which is why a precision parameter is provided.
+</Info>
+
+### Configuration Example
+
+<CodeGroup>
+```yaml Monocular Fisheye
+Camera.type: "KannalaBrandt8"
+
+# Intrinsic parameters
+Camera.fx: 190.97847715128717
+Camera.fy: 190.9733070521226
+Camera.cx: 254.93170605935475
+Camera.cy: 256.8974428996504
+
+# Fisheye distortion coefficients
+Camera.k1: 0.0034823894022493434
+Camera.k2: 0.0007150348452162257
+Camera.k3: -0.0020532361418706202
+Camera.k4: 0.00020293673591811182
+```
+
+```yaml Stereo Fisheye
+Camera.type: "KannalaBrandt8"
+
+# Left camera
+Camera1.fx: 190.97847715128717
+Camera1.fy: 190.9733070521226  
+Camera1.cx: 254.93170605935475
+Camera1.cy: 256.8974428996504
+Camera1.k1: 0.0034823894022493434
+Camera1.k2: 0.0007150348452162257
+Camera1.k3: -0.0020532361418706202
+Camera1.k4: 0.00020293673591811182
+
+# Right camera (similar parameters)
+Camera2.fx: 190.44236969414825
+# ... (similar structure)
+
+# Stereo configuration
+Stereo.ThDepth: 40.0
+Stereo.b: 0.05319544 # baseline
+```
+</CodeGroup>
+
+### Overlapping Field-of-View
+
+For stereo fisheye, the system can use overlapping regions:
+
+```cpp
+std::vector<int> mvLappingArea; // [2] defining overlap region
+```
+
+<Note>
+Fisheye stereo doesn't require rectification - ORB-SLAM3 works with the original distorted images.
+</Note>
+
+### Use Cases
+
+<Check>
+**Use Kannala-Brandt model for:**
+- Wide-angle lenses (>90° FOV)
+- Fisheye lenses (>180° FOV)
+- Action cameras (GoPro, etc.)
+- TUM-VI dataset (fisheye stereo)
+- Applications requiring maximum field of view
+</Check>
+
+## Camera Type Enumeration
+
+Camera types are distinguished by the `mnType` field:
+
+```cpp
+mnType = CAM_PINHOLE;  // For Pinhole cameras
+mnType = CAM_FISHEYE;  // For KannalaBrandt8 cameras
+```
+
+## Stereo Configurations
+
+### Rectification
+
+<Tabs>
+  <Tab title="Pinhole Stereo">
+    **Rectification required** for standard stereo matching.
+
+    <CodeGroup>
+    ```yaml With Online Rectification
+    # Provide rectification matrices in config
+Stereo.K_l: !!opencv-matrix
+   rows: 3
+   cols: 3
+   dt: f
+   data: [fx, 0, cx, 0, fy, cy, 0, 0, 1]
+
+Stereo.K_r: !!opencv-matrix
+   # Right camera rectified K
+
+Stereo.P_l: !!opencv-matrix
+   # Left projection matrix
+
+Stereo.P_r: !!opencv-matrix
+   # Right projection matrix
+
+Stereo.R_l: !!opencv-matrix
+   # Left rectification rotation
+
+Stereo.R_r: !!opencv-matrix
+   # Right rectification rotation
+
+Stereo.D_l: !!opencv-matrix
+   # Left distortion
+
+Stereo.D_r: !!opencv-matrix
+   # Right distortion
+    ```
+
+    ```yaml Pre-rectified Images
+    # If images are already rectified,
+    # only intrinsics needed
+    Camera1.fx: 435.2046
+    Camera1.fy: 435.2046
+    Camera1.cx: 367.4517
+    Camera1.cy: 252.2008
+    ```
+    </CodeGroup>
+  </Tab>
+
+  <Tab title="Fisheye Stereo">
+    **No rectification needed** - works with original images.
+
+    ```yaml Configuration
+    # Just provide intrinsics and distortion
+    Camera1.fx: 190.978
+    Camera1.fy: 190.973
+    Camera1.cx: 254.932
+    Camera1.cy: 256.897
+    Camera1.k1: 0.00348
+    Camera1.k2: 0.00072
+    Camera1.k3: -0.00205
+    Camera1.k4: 0.00020
+
+    # Optional: lapping area for overlap
+    Camera1.lappingBegin: 0
+    Camera1.lappingEnd: 752
+    ```
+
+    <Info>
+    Fisheye stereo matching is performed directly on distorted images using the full camera model.
+    </Info>
+  </Tab>
+</Tabs>
+
+## Camera Calibration
+
+### Calibration Process
+
+<Steps>
+  <Step title="Capture Calibration Images">
+    Record 20-30 images of a checkerboard or calibration pattern from different angles and distances.
+  </Step>
+  <Step title="Run Calibration Tool">
+    Use OpenCV calibration tools or MATLAB Camera Calibrator:
+    - For Pinhole: standard `calibrateCamera()`
+    - For Fisheye: `fisheye::calibrate()`
+  </Step>
+  <Step title="Extract Parameters">
+    Obtain intrinsic parameters (fx, fy, cx, cy) and distortion coefficients.
+  </Step>
+  <Step title="Create Config File">
+    Format parameters into ORB-SLAM3 YAML configuration file.
+  </Step>
+</Steps>
+
+<Tip>
+Refer to `Calibration_Tutorial.pdf` in the ORB-SLAM3 repository for detailed calibration instructions.
+</Tip>
+
+## Advanced Features
+
+### Two-View Reconstruction
+
+Both camera models support robust two-view initialization:
+
+```cpp
+bool ReconstructWithTwoViews(
+    const std::vector<cv::KeyPoint>& vKeys1, 
+    const std::vector<cv::KeyPoint>& vKeys2, 
+    const std::vector<int> &vMatches12,
+    Sophus::SE3f &T21, 
+    std::vector<cv::Point3f> &vP3D, 
+    std::vector<bool> &vbTriangulated
+);
+```
+
+This method:
+- Estimates relative camera pose from matched features
+- Triangulates 3D points
+- Used during system initialization
+
+### Epipolar Constraints
+
+```cpp
+bool epipolarConstrain(
+    GeometricCamera* pCamera2, 
+    const cv::KeyPoint& kp1, 
+    const cv::KeyPoint& kp2, 
+    const Eigen::Matrix3f& R12, 
+    const Eigen::Vector3f& t12, 
+    const float sigmaLevel, 
+    const float unc
+);
+```
+
+Validates feature matches using epipolar geometry.
+
+### Feature Triangulation
+
+Kannala-Brandt8 provides specialized triangulation:
+
+```cpp
+float TriangulateMatches(
+    GeometricCamera* pCamera2, 
+    const cv::KeyPoint& kp1, 
+    const cv::KeyPoint& kp2,  
+    const Eigen::Matrix3f& R12, 
+    const Eigen::Vector3f& t12, 
+    const float sigmaLevel, 
+    const float unc, 
+    Eigen::Vector3f& p3D
+);
+```
+
+## Model Comparison
+
+| Feature | Pinhole | Kannala-Brandt8 |
+|---------|---------|------------------|
+| **Parameters** | 4 (fx, fy, cx, cy) | 8 (fx, fy, cx, cy, k0-k3) |
+| **FOV Range** | Less than 90° optimal | 90°-220° |
+| **Rectification** | Required (stereo) | Not needed |
+| **Unprojection** | Closed-form | Iterative |
+| **Distortion Model** | Radial-tangential | Polynomial radial |
+| **Computation** | Faster | Slightly slower |
+| **Datasets** | EuRoC, KITTI | TUM-VI |
+
+## Related Topics
+
+<CardGroup cols={2}>
+  <Card title="Sensor Modes" icon="camera-viewfinder" href="/concepts/sensor-modes">
+    Choose your sensor configuration (mono, stereo, RGB-D)
+  </Card>
+  <Card title="Configuration Files" icon="file-code" href="/configuration/settings-file">
+    Complete YAML configuration reference
+  </Card>
+  <Card title="Calibration Tutorial" icon="ruler" href="/guides/calibration">
+    Step-by-step camera calibration guide
+  </Card>
+  <Card title="Examples" icon="code" href="/examples/euroc-dataset">
+    Run examples with different camera models
+  </Card>
+</CardGroup>
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Choosing the Right Model">
+    - Use **Pinhole** for standard cameras and lenses with FOV < 90°
+    - Use **Kannala-Brandt8** for wide-angle (>90°) or fisheye lenses
+    - Never use pinhole model for fisheye lenses - accuracy will be poor
+  </Accordion>
+
+  <Accordion title="Calibration Quality">
+    - Ensure low reprojection error (< 0.5 pixels)
+    - Calibrate at the same resolution you'll use for SLAM
+    - Cover the entire image area during calibration
+    - Use at least 20 calibration images
+  </Accordion>
+
+  <Accordion title="Runtime Considerations">
+    - Pinhole projection is faster than fisheye
+    - Fisheye unprojection requires iteration (precision parameter)
+    - Both models are optimized for real-time performance
+  </Accordion>
+</AccordionGroup>

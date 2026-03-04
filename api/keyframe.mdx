@@ -1,0 +1,484 @@
+---
+title: "KeyFrame"
+description: "KeyFrame data structure representing selected frames used for mapping and optimization"
+---
+
+## Overview
+
+The `KeyFrame` class represents a carefully selected subset of frames that form the core of the map in ORB-SLAM3. KeyFrames store features, pose, covisibility relationships, and serve as nodes in the covisibility graph and spanning tree. They are essential for local mapping, loop closure, and bundle adjustment.
+
+```cpp
+namespace ORB_SLAM3 {
+    class KeyFrame;
+}
+```
+
+Defined in: `KeyFrame.h:52`
+
+## Key Features
+
+- Selected based on specific criteria to ensure good map coverage
+- Connected through covisibility graph based on shared MapPoint observations
+- Organized in spanning tree structure for efficient map management
+- Support loop closure detection and map merging
+- Store Bag-of-Words representation for place recognition
+- IMU preintegration data for visual-inertial SLAM
+
+## Constructor
+
+```cpp
+KeyFrame(Frame &F, Map* pMap, KeyFrameDatabase* pKFDB);
+```
+
+Creates a KeyFrame from a Frame.
+
+**Parameters:**
+- `F` - Source frame
+- `pMap` - Map to which this KeyFrame belongs
+- `pKFDB` - KeyFrame database for place recognition
+
+<Note>
+KeyFrames are created during tracking when certain criteria are met: sufficient time has passed, tracking quality is good, or enough new MapPoints are visible.
+</Note>
+
+## Pose Functions
+
+### SetPose
+
+```cpp
+void SetPose(const Sophus::SE3f &Tcw);
+```
+
+Sets the camera pose (transformation from world to camera).
+
+### GetPose
+
+```cpp
+Sophus::SE3f GetPose();
+```
+
+Returns the camera pose with thread safety.
+
+### GetPoseInverse
+
+```cpp
+Sophus::SE3f GetPoseInverse();
+```
+
+Returns the inverse pose (camera to world transformation).
+
+### GetCameraCenter
+
+```cpp
+Eigen::Vector3f GetCameraCenter();
+```
+
+Returns the camera center in world coordinates.
+
+### GetRotation / GetTranslation
+
+```cpp
+Eigen::Matrix3f GetRotation();
+Eigen::Vector3f GetTranslation();
+```
+
+Return rotation matrix and translation vector components of the pose.
+
+## Covisibility Graph
+
+The covisibility graph connects KeyFrames that observe common MapPoints, enabling efficient local mapping and optimization.
+
+### AddConnection
+
+```cpp
+void AddConnection(KeyFrame* pKF, const int &weight);
+```
+
+Adds a connection to another KeyFrame with the specified weight (number of shared MapPoints).
+
+### EraseConnection
+
+```cpp
+void EraseConnection(KeyFrame* pKF);
+```
+
+Removes a connection to another KeyFrame.
+
+### UpdateConnections
+
+```cpp
+void UpdateConnections(bool upParent=true);
+```
+
+Updates the covisibility graph based on current MapPoint observations.
+
+### GetConnectedKeyFrames
+
+```cpp
+std::set<KeyFrame*> GetConnectedKeyFrames();
+```
+
+Returns all connected KeyFrames.
+
+### GetBestCovisibilityKeyFrames
+
+```cpp
+std::vector<KeyFrame*> GetBestCovisibilityKeyFrames(const int &N);
+```
+
+Returns the N KeyFrames with highest covisibility weight.
+
+### GetCovisiblesByWeight
+
+```cpp
+std::vector<KeyFrame*> GetCovisiblesByWeight(const int &w);
+```
+
+Returns KeyFrames with covisibility weight greater than w.
+
+### GetWeight
+
+```cpp
+int GetWeight(KeyFrame* pKF);
+```
+
+Returns the covisibility weight with another KeyFrame (number of shared MapPoints).
+
+## Spanning Tree
+
+KeyFrames are organized in a spanning tree to enable efficient propagation of updates during optimization.
+
+### AddChild / EraseChild
+
+```cpp
+void AddChild(KeyFrame* pKF);
+void EraseChild(KeyFrame* pKF);
+```
+
+Adds or removes a child KeyFrame in the spanning tree.
+
+### ChangeParent
+
+```cpp
+void ChangeParent(KeyFrame* pKF);
+```
+
+Changes the parent KeyFrame in the spanning tree.
+
+### GetParent / GetChilds
+
+```cpp
+KeyFrame* GetParent();
+std::set<KeyFrame*> GetChilds();
+```
+
+Returns parent or children in the spanning tree.
+
+### hasChild
+
+```cpp
+bool hasChild(KeyFrame* pKF);
+```
+
+Checks if a KeyFrame is a child in the spanning tree.
+
+## Loop Closure
+
+### AddLoopEdge
+
+```cpp
+void AddLoopEdge(KeyFrame* pKF);
+```
+
+Adds a loop closure edge connecting this KeyFrame to another through detected loop.
+
+### GetLoopEdges
+
+```cpp
+std::set<KeyFrame*> GetLoopEdges();
+```
+
+Returns all loop closure edges.
+
+## Map Merging
+
+### AddMergeEdge
+
+```cpp
+void AddMergeEdge(KeyFrame* pKF);
+```
+
+Adds a merge edge for map merging operations.
+
+### GetMergeEdges
+
+```cpp
+set<KeyFrame*> GetMergeEdges();
+```
+
+Returns all merge edges.
+
+## MapPoint Observations
+
+### AddMapPoint
+
+```cpp
+void AddMapPoint(MapPoint* pMP, const size_t &idx);
+```
+
+Associates a MapPoint with a keypoint at index idx.
+
+### EraseMapPointMatch
+
+```cpp
+void EraseMapPointMatch(const int &idx);
+void EraseMapPointMatch(MapPoint* pMP);
+```
+
+Removes a MapPoint association by index or pointer.
+
+### ReplaceMapPointMatch
+
+```cpp
+void ReplaceMapPointMatch(const int &idx, MapPoint* pMP);
+```
+
+Replaces the MapPoint at index idx.
+
+### GetMapPoints
+
+```cpp
+std::set<MapPoint*> GetMapPoints();
+```
+
+Returns all MapPoints observed by this KeyFrame.
+
+### GetMapPointMatches
+
+```cpp
+std::vector<MapPoint*> GetMapPointMatches();
+```
+
+Returns MapPoint associations indexed by keypoint.
+
+### TrackedMapPoints
+
+```cpp
+int TrackedMapPoints(const int &minObs);
+```
+
+Returns count of MapPoints with at least minObs observations.
+
+### GetNumberMPs
+
+```cpp
+int GetNumberMPs();
+```
+
+Returns the total number of MapPoints observed.
+
+## Bag of Words
+
+### ComputeBoW
+
+```cpp
+void ComputeBoW();
+```
+
+Computes the Bag of Words representation for place recognition.
+
+## Bad Flag Management
+
+### SetBadFlag
+
+```cpp
+void SetBadFlag();
+```
+
+Marks the KeyFrame as bad and removes it from the map. Updates covisibility graph and spanning tree.
+
+### isBad
+
+```cpp
+bool isBad();
+```
+
+Returns true if the KeyFrame is marked as bad.
+
+### SetNotErase / SetErase
+
+```cpp
+void SetNotErase();
+void SetErase();
+```
+
+Controls whether the KeyFrame can be erased (used during loop closure and optimization).
+
+## Data Members
+
+### Identification
+
+```cpp
+static long unsigned int nNextId;
+long unsigned int mnId;              // KeyFrame unique ID
+const long unsigned int mnFrameId;   // Original frame ID
+const double mTimeStamp;             // Timestamp
+```
+
+### Feature Data
+
+```cpp
+// Number of keypoints
+const int N;
+
+// Keypoints and descriptors
+const std::vector<cv::KeyPoint> mvKeys;
+const std::vector<cv::KeyPoint> mvKeysUn;
+const std::vector<float> mvuRight;    // Stereo correspondence
+const std::vector<float> mvDepth;     // Depth information
+const cv::Mat mDescriptors;
+```
+
+### Bag of Words
+
+```cpp
+DBoW2::BowVector mBowVec;
+DBoW2::FeatureVector mFeatVec;
+ORBVocabulary* mpORBvocabulary;
+KeyFrameDatabase* mpKeyFrameDB;
+```
+
+### Camera Calibration
+
+```cpp
+const float fx, fy, cx, cy;
+const float invfx, invfy;
+const float mbf;         // Baseline * fx
+const float mb;          // Baseline
+const float mThDepth;    // Close/far point threshold
+cv::Mat mDistCoef;
+```
+
+### Pose
+
+```cpp
+// Camera pose (protected by mutex)
+Sophus::SE3<float> mTcw;     // World to camera
+Eigen::Matrix3f mRcw;
+Sophus::SE3<float> mTwc;     // Camera to world
+Eigen::Matrix3f mRwc;
+```
+
+### IMU Data
+
+```cpp
+bool bImu;                           // IMU availability flag
+IMU::Bias mImuBias;
+IMU::Calib mImuCalib;
+IMU::Preintegrated* mpImuPreintegrated;
+
+// IMU position and velocity
+Eigen::Vector3f mOwb;
+Eigen::Vector3f mVw;
+bool mbHasVelocity;
+
+// Previous/next KeyFrame in temporal sequence
+KeyFrame* mPrevKF;
+KeyFrame* mNextKF;
+```
+
+### Covisibility Graph
+
+```cpp
+// Connected KeyFrames with weights
+std::map<KeyFrame*,int> mConnectedKeyFrameWeights;
+std::vector<KeyFrame*> mvpOrderedConnectedKeyFrames;
+std::vector<int> mvOrderedWeights;
+```
+
+### Spanning Tree
+
+```cpp
+bool mbFirstConnection;
+KeyFrame* mpParent;
+std::set<KeyFrame*> mspChildrens;
+```
+
+### Loop Closure
+
+```cpp
+std::set<KeyFrame*> mspLoopEdges;
+std::set<KeyFrame*> mspMergeEdges;
+
+// Loop closure variables
+Sophus::SE3f mTcwGBA;        // Pose after global BA
+Sophus::SE3f mTcwBefGBA;     // Pose before global BA
+Eigen::Vector3f mVwbGBA;
+Eigen::Vector3f mVwbBefGBA;
+IMU::Bias mBiasGBA;
+```
+
+### Map Association
+
+```cpp
+Map* mpMap;
+unsigned int mnOriginMapId;
+```
+
+### Grid for Feature Matching
+
+```cpp
+const int mnGridCols;
+const int mnGridRows;
+const float mfGridElementWidthInv;
+const float mfGridElementHeightInv;
+std::vector<std::vector<std::vector<size_t>>> mGrid;
+```
+
+### ORB Scale Pyramid
+
+```cpp
+const int mnScaleLevels;
+const float mfScaleFactor;
+const float mfLogScaleFactor;
+const std::vector<float> mvScaleFactors;
+const std::vector<float> mvLevelSigma2;
+const std::vector<float> mvInvLevelSigma2;
+```
+
+## Thread Safety
+
+KeyFrame uses mutexes for thread-safe access:
+
+```cpp
+std::mutex mMutexPose;         // Pose, velocity, biases
+std::mutex mMutexConnections;  // Covisibility graph
+std::mutex mMutexFeatures;     // Features and MapPoints
+std::mutex mMutexMap;          // Map pointer
+```
+
+## Usage Example
+
+```cpp
+// Create KeyFrame from frame
+KeyFrame* pKF = new KeyFrame(currentFrame, pMap, pKFDB);
+
+// Compute BoW for place recognition
+pKF->ComputeBoW();
+
+// Update covisibility connections
+pKF->UpdateConnections();
+
+// Get best covisible KeyFrames
+vector<KeyFrame*> vpNeighKFs = pKF->GetBestCovisibilityKeyFrames(10);
+
+// Check covisibility weight
+int weight = pKF->GetWeight(vpNeighKFs[0]);
+
+// Get observed MapPoints
+set<MapPoint*> spMapPoints = pKF->GetMapPoints();
+```
+
+<Info>
+KeyFrame selection is critical for system performance. Too few KeyFrames result in poor map coverage, while too many increase computational cost.
+</Info>

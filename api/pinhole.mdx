@@ -1,0 +1,272 @@
+---
+title: 'Pinhole'
+description: 'Standard pinhole camera model with perspective projection'
+---
+
+## Overview
+
+`Pinhole` implements the standard pinhole camera model with perspective projection. It extends `GeometricCamera` and is used for conventional cameras with narrow to moderate field-of-view.
+
+**Header:** `CameraModels/Pinhole.h`
+
+**Namespace:** `ORB_SLAM3`
+
+**Base Class:** [GeometricCamera](/api/geometric-camera)
+
+## Camera Parameters
+
+The pinhole model uses 4 intrinsic parameters:
+
+```cpp
+[fx, fy, cx, cy]
+```
+
+- `fx` - Focal length in x direction (pixels)
+- `fy` - Focal length in y direction (pixels)
+- `cx` - Principal point x coordinate (pixels)
+- `cy` - Principal point y coordinate (pixels)
+
+**Note:** Distortion coefficients are stored separately in the Settings class.
+
+## Constructors
+
+```cpp
+Pinhole()
+```
+Default constructor with 4 parameters.
+
+```cpp
+Pinhole(const std::vector<float> _vParameters)
+```
+Construct with parameter vector (must have size 4).
+
+**Parameters:**
+- `_vParameters` - Vector `[fx, fy, cx, cy]`
+
+```cpp
+Pinhole(Pinhole *pPinhole)
+```
+Copy constructor from another pinhole camera.
+
+**Parameters:**
+- `pPinhole` - Source pinhole camera
+
+## Projection Methods
+
+Project 3D points to 2D image coordinates using perspective projection.
+
+```cpp
+cv::Point2f project(const cv::Point3f &p3D)
+```
+
+```cpp
+Eigen::Vector2d project(const Eigen::Vector3d &v3D)
+```
+
+```cpp
+Eigen::Vector2f project(const Eigen::Vector3f &v3D)
+```
+
+```cpp
+Eigen::Vector2f projectMat(const cv::Point3f &p3D)
+```
+
+**Parameters:**
+- `p3D` / `v3D` - 3D point in camera coordinates
+
+**Returns:** 2D point in image coordinates (pixels)
+
+**Projection equation:**
+```
+u = fx * X/Z + cx
+v = fy * Y/Z + cy
+```
+
+## Unprojection Methods
+
+Unproject 2D image points to 3D unit rays.
+
+```cpp
+cv::Point3f unproject(const cv::Point2f &p2D)
+```
+
+```cpp
+Eigen::Vector3f unprojectEig(const cv::Point2f &p2D)
+```
+
+**Parameters:**
+- `p2D` - 2D point in image coordinates (pixels)
+
+**Returns:** 3D unit vector representing the ray direction
+
+**Unprojection equation:**
+```
+X = (u - cx) / fx
+Y = (v - cy) / fy
+Z = 1
+result = [X, Y, Z] / norm([X, Y, Z])
+```
+
+## Jacobian
+
+```cpp
+Eigen::Matrix<double,2,3> projectJac(const Eigen::Vector3d &v3D)
+```
+
+Compute the Jacobian of the projection function with respect to 3D point coordinates.
+
+**Parameters:**
+- `v3D` - 3D point in camera coordinates
+
+**Returns:** 2x3 Jacobian matrix ∂π/∂X
+
+**Jacobian form:**
+```
+∂π/∂X = [fx/Z    0    -fx*X/Z²]
+        [  0   fy/Z  -fy*Y/Z²]
+```
+
+## Uncertainty
+
+```cpp
+float uncertainty2(const Eigen::Matrix<double,2,1> &p2D)
+```
+
+Compute squared uncertainty for a 2D point.
+
+**Parameters:**
+- `p2D` - 2D point in image coordinates
+
+**Returns:** Uncertainty value
+
+## Calibration Matrix
+
+```cpp
+cv::Mat toK()
+```
+
+```cpp
+Eigen::Matrix3f toK_()
+```
+
+Return the intrinsic calibration matrix K.
+
+**Returns:** 3x3 matrix:
+```
+[fx  0  cx]
+[ 0 fy  cy]
+[ 0  0   1]
+```
+
+## Two-View Reconstruction
+
+```cpp
+bool ReconstructWithTwoViews(
+    const std::vector<cv::KeyPoint> &vKeys1,
+    const std::vector<cv::KeyPoint> &vKeys2,
+    const std::vector<int> &vMatches12,
+    Sophus::SE3f &T21,
+    std::vector<cv::Point3f> &vP3D,
+    std::vector<bool> &vbTriangulated
+)
+```
+
+Reconstruct 3D points and camera pose from two pinhole views using essential matrix decomposition.
+
+**Parameters:**
+- `vKeys1` - Keypoints from first image
+- `vKeys2` - Keypoints from second image
+- `vMatches12` - Correspondences between views
+- `T21` - Output: relative transformation from view 1 to view 2
+- `vP3D` - Output: triangulated 3D points
+- `vbTriangulated` - Output: success flags for each point
+
+**Returns:** `true` if reconstruction successful
+
+**Process:**
+1. Compute fundamental matrix from matches
+2. Recover essential matrix using K
+3. Decompose essential matrix to get R and t
+4. Triangulate points and check cheirality
+
+## Epipolar Constraint
+
+```cpp
+bool epipolarConstrain(
+    GeometricCamera *pCamera2,
+    const cv::KeyPoint &kp1,
+    const cv::KeyPoint &kp2,
+    const Eigen::Matrix3f &R12,
+    const Eigen::Vector3f &t12,
+    const float sigmaLevel,
+    const float unc
+)
+```
+
+Verify epipolar constraint between two keypoints.
+
+**Parameters:**
+- `pCamera2` - Second camera model
+- `kp1` - Keypoint in first image
+- `kp2` - Keypoint in second image
+- `R12` - Rotation from camera 1 to 2
+- `t12` - Translation from camera 1 to 2
+- `sigmaLevel` - Uncertainty scale factor
+- `unc` - Uncertainty threshold
+
+**Returns:** `true` if epipolar constraint satisfied
+
+**Constraint:** `x2ᵀ * E * x1 = 0` where `E = [t]×R`
+
+## Comparison
+
+```cpp
+bool IsEqual(GeometricCamera *pCam)
+```
+
+Check if another camera has identical parameters.
+
+**Parameters:**
+- `pCam` - Camera to compare against
+
+**Returns:** `true` if parameters match
+
+## Stream Operators
+
+```cpp
+friend std::ostream& operator<<(std::ostream &os, const Pinhole &ph)
+```
+Output pinhole parameters to stream.
+
+```cpp
+friend std::istream& operator>>(std::istream &is, Pinhole &ph)
+```
+Read pinhole parameters from stream.
+
+## Usage Example
+
+```cpp
+// Create pinhole camera
+std::vector<float> params = {fx, fy, cx, cy};
+Pinhole* pCamera = new Pinhole(params);
+
+// Project 3D point
+cv::Point3f point3D(1.0f, 0.5f, 2.0f);
+cv::Point2f point2D = pCamera->project(point3D);
+
+// Unproject to ray
+cv::Point3f ray = pCamera->unproject(point2D);
+
+// Get calibration matrix
+Eigen::Matrix3f K = pCamera->toK_();
+```
+
+## Camera Type
+
+Pinhole cameras have type `CAM_PINHOLE` (value 0).
+
+## See Also
+
+- [GeometricCamera](/api/geometric-camera) - Base class interface
+- [KannalaBrandt8](/api/kannala-brandt) - Fisheye camera model
+- [Settings](/api/settings) - Camera configuration loading

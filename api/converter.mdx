@@ -1,0 +1,527 @@
+---
+title: Converter
+description: Utility functions for converting between OpenCV, Eigen, g2o, and Sophus types
+---
+
+## Overview
+
+The `Converter` class provides static utility functions for converting between different mathematical representations used in ORB-SLAM3: OpenCV matrices, Eigen matrices, g2o types, and Sophus types.
+
+**Header:** `include/Converter.h`
+
+## Descriptor Conversion
+
+### toDescriptorVector
+
+```cpp
+static std::vector<cv::Mat> toDescriptorVector(const cv::Mat &Descriptors)
+```
+
+Converts a descriptor matrix to a vector of individual descriptors.
+
+**Parameters:**
+- `Descriptors` - Matrix where each row is a descriptor
+
+**Returns:** Vector of descriptor rows
+
+**Used in:** BoW database queries
+
+## SE3 Conversions
+
+### toSE3Quat (from cv::Mat)
+
+```cpp
+static g2o::SE3Quat toSE3Quat(const cv::Mat &cvT)
+```
+
+Converts OpenCV 4x4 transformation matrix to g2o SE3 quaternion representation.
+
+**Parameters:**
+- `cvT` - 4x4 OpenCV transformation matrix (SE3)
+
+**Returns:** g2o SE3 quaternion
+
+### toSE3Quat (from Sophus)
+
+```cpp
+static g2o::SE3Quat toSE3Quat(const Sophus::SE3f &T)
+```
+
+Converts Sophus SE3 to g2o SE3 quaternion representation.
+
+**Parameters:**
+- `T` - Sophus SE3 transformation
+
+**Returns:** g2o SE3 quaternion
+
+### toSE3Quat (from Sim3)
+
+```cpp
+static g2o::SE3Quat toSE3Quat(const g2o::Sim3 &gSim3)
+```
+
+Extracts SE3 component from g2o Sim3.
+
+**Parameters:**
+- `gSim3` - g2o Sim3 transformation
+
+**Returns:** g2o SE3 quaternion (scale removed)
+
+## OpenCV Matrix Conversions
+
+### toCvMat (from SE3)
+
+```cpp
+static cv::Mat toCvMat(const g2o::SE3Quat &SE3)
+```
+
+Converts g2o SE3 to OpenCV 4x4 matrix.
+
+**Parameters:**
+- `SE3` - g2o SE3 quaternion
+
+**Returns:** 4x4 OpenCV Mat (CV_32F)
+
+### toCvMat (from Sim3)
+
+```cpp
+static cv::Mat toCvMat(const g2o::Sim3 &Sim3)
+```
+
+Converts g2o Sim3 to OpenCV 4x4 matrix.
+
+**Parameters:**
+- `Sim3` - g2o Sim3 transformation
+
+**Returns:** 4x4 OpenCV Mat (CV_32F)
+
+### toCvMat (from Eigen 4x4 double)
+
+```cpp
+static cv::Mat toCvMat(const Eigen::Matrix<double,4,4> &m)
+```
+
+Converts Eigen 4x4 double matrix to OpenCV matrix.
+
+**Parameters:**
+- `m` - Eigen 4x4 matrix (double)
+
+**Returns:** 4x4 OpenCV Mat (CV_32F)
+
+### toCvMat (from Eigen 4x4 float)
+
+```cpp
+static cv::Mat toCvMat(const Eigen::Matrix<float,4,4> &m)
+```
+
+Converts Eigen 4x4 float matrix to OpenCV matrix.
+
+**Parameters:**
+- `m` - Eigen 4x4 matrix (float)
+
+**Returns:** 4x4 OpenCV Mat (CV_32F)
+
+### toCvMat (from Eigen 3x4)
+
+```cpp
+static cv::Mat toCvMat(const Eigen::Matrix<float,3,4> &m)
+```
+
+Converts Eigen 3x4 projection matrix to OpenCV matrix.
+
+**Parameters:**
+- `m` - Eigen 3x4 matrix (float)
+
+**Returns:** 3x4 OpenCV Mat (CV_32F)
+
+### toCvMat (from Eigen 3x3 double)
+
+```cpp
+static cv::Mat toCvMat(const Eigen::Matrix3d &m)
+```
+
+Converts Eigen 3x3 double matrix to OpenCV matrix.
+
+**Parameters:**
+- `m` - Eigen 3x3 matrix (double)
+
+**Returns:** 3x3 OpenCV Mat (CV_32F)
+
+### toCvMat (from Eigen 3x3 float)
+
+```cpp
+static cv::Mat toCvMat(const Eigen::Matrix<float,3,3> &m)
+```
+
+Converts Eigen 3x3 float matrix to OpenCV matrix.
+
+**Parameters:**
+- `m` - Eigen 3x3 matrix (float)
+
+**Returns:** 3x3 OpenCV Mat (CV_32F)
+
+### toCvMat (from Eigen 3x1 double)
+
+```cpp
+static cv::Mat toCvMat(const Eigen::Matrix<double,3,1> &m)
+```
+
+Converts Eigen 3D double vector to OpenCV matrix.
+
+**Parameters:**
+- `m` - Eigen 3x1 vector (double)
+
+**Returns:** 3x1 OpenCV Mat (CV_32F)
+
+### toCvMat (from Eigen 3x1 float)
+
+```cpp
+static cv::Mat toCvMat(const Eigen::Matrix<float,3,1> &m)
+```
+
+Converts Eigen 3D float vector to OpenCV matrix.
+
+**Parameters:**
+- `m` - Eigen 3x1 vector (float)
+
+**Returns:** 3x1 OpenCV Mat (CV_32F)
+
+### toCvMat (from Eigen MatrixXf)
+
+```cpp
+static cv::Mat toCvMat(const Eigen::MatrixXf &m)
+```
+
+Converts dynamic Eigen float matrix to OpenCV matrix.
+
+**Parameters:**
+- `m` - Eigen dynamic matrix (float)
+
+**Returns:** OpenCV Mat (CV_32F)
+
+### toCvMat (from Eigen MatrixXd)
+
+```cpp
+static cv::Mat toCvMat(const Eigen::MatrixXd &m)
+```
+
+Converts dynamic Eigen double matrix to OpenCV matrix.
+
+**Parameters:**
+- `m` - Eigen dynamic matrix (double)
+
+**Returns:** OpenCV Mat (CV_32F)
+
+## Eigen Conversions
+
+### toVector3d (from cv::Mat)
+
+```cpp
+static Eigen::Matrix<double,3,1> toVector3d(const cv::Mat &cvVector)
+```
+
+Converts OpenCV 3x1 matrix to Eigen 3D double vector.
+
+**Parameters:**
+- `cvVector` - 3x1 OpenCV Mat
+
+**Returns:** Eigen 3D vector (double)
+
+### toVector3f (from cv::Mat)
+
+```cpp
+static Eigen::Matrix<float,3,1> toVector3f(const cv::Mat &cvVector)
+```
+
+Converts OpenCV 3x1 matrix to Eigen 3D float vector.
+
+**Parameters:**
+- `cvVector` - 3x1 OpenCV Mat
+
+**Returns:** Eigen 3D vector (float)
+
+### toVector3d (from cv::Point3f)
+
+```cpp
+static Eigen::Matrix<double,3,1> toVector3d(const cv::Point3f &cvPoint)
+```
+
+Converts OpenCV 3D point to Eigen 3D double vector.
+
+**Parameters:**
+- `cvPoint` - OpenCV Point3f
+
+**Returns:** Eigen 3D vector (double)
+
+### toMatrix3d
+
+```cpp
+static Eigen::Matrix<double,3,3> toMatrix3d(const cv::Mat &cvMat3)
+```
+
+Converts OpenCV 3x3 matrix to Eigen 3x3 double matrix.
+
+**Parameters:**
+- `cvMat3` - 3x3 OpenCV Mat
+
+**Returns:** Eigen 3x3 matrix (double)
+
+### toMatrix3f
+
+```cpp
+static Eigen::Matrix<float,3,3> toMatrix3f(const cv::Mat &cvMat3)
+```
+
+Converts OpenCV 3x3 matrix to Eigen 3x3 float matrix.
+
+**Parameters:**
+- `cvMat3` - 3x3 OpenCV Mat
+
+**Returns:** Eigen 3x3 matrix (float)
+
+### toMatrix4d
+
+```cpp
+static Eigen::Matrix<double,4,4> toMatrix4d(const cv::Mat &cvMat4)
+```
+
+Converts OpenCV 4x4 matrix to Eigen 4x4 double matrix.
+
+**Parameters:**
+- `cvMat4` - 4x4 OpenCV Mat
+
+**Returns:** Eigen 4x4 matrix (double)
+
+### toMatrix4f
+
+```cpp
+static Eigen::Matrix<float,4,4> toMatrix4f(const cv::Mat &cvMat4)
+```
+
+Converts OpenCV 4x4 matrix to Eigen 4x4 float matrix.
+
+**Parameters:**
+- `cvMat4` - 4x4 OpenCV Mat
+
+**Returns:** Eigen 4x4 matrix (float)
+
+## Rotation Conversions
+
+### toQuaternion
+
+```cpp
+static std::vector<float> toQuaternion(const cv::Mat &M)
+```
+
+Converts rotation matrix to quaternion representation.
+
+**Parameters:**
+- `M` - 3x3 rotation matrix (OpenCV Mat)
+
+**Returns:** Vector of 4 floats [x, y, z, w]
+
+### toEuler
+
+```cpp
+static std::vector<float> toEuler(const cv::Mat &R)
+```
+
+Converts rotation matrix to Euler angles.
+
+**Parameters:**
+- `R` - 3x3 rotation matrix (OpenCV Mat)
+
+**Returns:** Vector of 3 floats [roll, pitch, yaw]
+
+### isRotationMatrix
+
+```cpp
+static bool isRotationMatrix(const cv::Mat &R)
+```
+
+Checks if a matrix is a valid rotation matrix.
+
+**Parameters:**
+- `R` - 3x3 matrix to check
+
+**Returns:** True if valid rotation matrix
+
+**Details:**
+- Checks if R^T * R = I
+- Checks if det(R) = 1
+
+## Transform Construction
+
+### toCvSE3
+
+```cpp
+static cv::Mat toCvSE3(const Eigen::Matrix<double,3,3> &R,
+                       const Eigen::Matrix<double,3,1> &t)
+```
+
+Constructs 4x4 SE3 transformation from rotation and translation.
+
+**Parameters:**
+- `R` - 3x3 rotation matrix (Eigen double)
+- `t` - 3x1 translation vector (Eigen double)
+
+**Returns:** 4x4 OpenCV Mat transformation
+
+### tocvSkewMatrix
+
+```cpp
+static cv::Mat tocvSkewMatrix(const cv::Mat &v)
+```
+
+Converts 3D vector to skew-symmetric matrix.
+
+**Parameters:**
+- `v` - 3x1 vector (OpenCV Mat)
+
+**Returns:** 3x3 skew-symmetric matrix
+
+**Details:**
+For vector [x, y, z], returns:
+```
+[  0  -z   y ]
+[  z   0  -x ]
+[ -y   x   0 ]
+```
+
+## Sophus Conversions
+
+### toSophus (from cv::Mat)
+
+```cpp
+static Sophus::SE3<float> toSophus(const cv::Mat& T)
+```
+
+Converts OpenCV 4x4 matrix to Sophus SE3.
+
+**Parameters:**
+- `T` - 4x4 transformation matrix (OpenCV Mat)
+
+**Returns:** Sophus SE3 (float)
+
+**Note:** Marked for future deprecation
+
+### toSophus (from g2o::Sim3)
+
+```cpp
+static Sophus::Sim3f toSophus(const g2o::Sim3& S)
+```
+
+Converts g2o Sim3 to Sophus Sim3.
+
+**Parameters:**
+- `S` - g2o Sim3 transformation
+
+**Returns:** Sophus Sim3 (float)
+
+**Note:** Marked for future deprecation
+
+## Usage Examples
+
+### Converting Poses
+
+```cpp
+// Convert g2o SE3 to OpenCV matrix
+g2o::SE3Quat g2oSE3 = pKF->GetPose();
+cv::Mat Tcw = Converter::toCvMat(g2oSE3);
+
+// Convert OpenCV matrix to Eigen
+Eigen::Matrix4d Tcw_eigen = Converter::toMatrix4d(Tcw);
+
+// Extract rotation and translation
+Eigen::Matrix3d R = Tcw_eigen.block<3,3>(0,0);
+Eigen::Vector3d t = Tcw_eigen.block<3,1>(0,3);
+```
+
+### Descriptor Conversion
+
+```cpp
+// Convert descriptors for BoW
+cv::Mat descriptors = pKF->mDescriptors;
+std::vector<cv::Mat> vDesc = Converter::toDescriptorVector(descriptors);
+
+// Use for DBoW3 queries
+DBoW2::BowVector bow;
+mpORBVocabulary->transform(vDesc, bow);
+```
+
+### Rotation Conversion
+
+```cpp
+// Convert rotation to quaternion
+cv::Mat R = Tcw.rowRange(0,3).colRange(0,3);
+std::vector<float> quat = Converter::toQuaternion(R);
+
+// Convert rotation to Euler angles
+std::vector<float> euler = Converter::toEuler(R);
+
+// Validate rotation matrix
+bool valid = Converter::isRotationMatrix(R);
+```
+
+### Building Transforms
+
+```cpp
+// Build SE3 from rotation and translation
+Eigen::Matrix3d R = pKF->GetRotation();
+Eigen::Vector3d t = pKF->GetTranslation();
+cv::Mat Tcw = Converter::toCvSE3(R, t);
+
+// Create skew-symmetric matrix
+cv::Mat v = (cv::Mat_<float>(3,1) << 1.0, 2.0, 3.0);
+cv::Mat skew = Converter::tocvSkewMatrix(v);
+```
+
+## Type Compatibility
+
+The Converter class handles conversions between:
+
+- **OpenCV** - cv::Mat (used for images and camera operations)
+- **Eigen** - Efficient linear algebra operations
+- **g2o** - Graph optimization types (SE3, Sim3)
+- **Sophus** - Lie group representations
+
+## Common Patterns
+
+### Storage to Computation
+
+```cpp
+// Poses stored as cv::Mat
+cv::Mat Tcw_storage = pKF->GetPose();
+
+// Convert to Eigen for computation
+Eigen::Matrix4d Tcw = Converter::toMatrix4d(Tcw_storage);
+
+// Perform operations
+Eigen::Matrix4d Twc = Tcw.inverse();
+
+// Convert back for storage
+cv::Mat Twc_storage = Converter::toCvMat(Twc);
+```
+
+### Optimization Integration
+
+```cpp
+// Convert pose to g2o for optimization
+cv::Mat Tcw = pFrame->mTcw;
+g2o::SE3Quat SE3quat = Converter::toSE3Quat(Tcw);
+
+// Create g2o vertex
+g2o::VertexSE3Expmap* vSE3 = new g2o::VertexSE3Expmap();
+vSE3->setEstimate(SE3quat);
+
+// After optimization, convert back
+SE3quat = vSE3->estimate();
+Tcw = Converter::toCvMat(SE3quat);
+```
+
+## See Also
+
+- [Optimizer](/api/optimizer) - Uses conversions for g2o optimization
+- [Frame](/api/frame) - Stores poses as cv::Mat
+- [KeyFrame](/api/keyframe) - Uses various pose representations
+- [MapPoint](/api/map-point) - Converts 3D coordinates

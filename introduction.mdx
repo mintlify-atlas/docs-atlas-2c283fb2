@@ -1,0 +1,122 @@
+---
+title: Introduction
+description: Overview of ORB-SLAM3, a powerful Visual SLAM library for real-time mapping and localization
+---
+
+## What is ORB-SLAM3?
+
+ORB-SLAM3 is the first real-time SLAM library able to perform **Visual, Visual-Inertial and Multi-Map SLAM** with **monocular, stereo and RGB-D** cameras, using **pin-hole and fisheye** lens models. In all sensor configurations, ORB-SLAM3 is as robust as the best systems available in the literature, and significantly more accurate.
+
+<Info>
+  ORB-SLAM3 v1.0 was released in December 2021 by the SLAM Lab at the University of Zaragoza.
+</Info>
+
+## Key Features
+
+### Multiple Sensor Configurations
+
+ORB-SLAM3 supports a wide range of sensor configurations:
+
+- **Monocular**: Single camera SLAM
+- **Stereo**: Dual camera stereo vision
+- **RGB-D**: Depth camera (e.g., Kinect, RealSense D435i)
+- **Monocular-Inertial**: Single camera with IMU
+- **Stereo-Inertial**: Dual camera with IMU  
+- **RGB-D-Inertial**: Depth camera with IMU
+
+### Camera Model Support
+
+- **Pin-hole cameras**: Standard perspective projection cameras
+- **Fisheye cameras**: Wide-angle fisheye lens models
+
+### Advanced Capabilities
+
+- **Real-time performance**: Processes frames at camera frame rate on modern hardware
+- **Multi-map SLAM**: Ability to build and manage multiple maps simultaneously
+- **Loop closure**: Automatic detection and correction of accumulated drift
+- **Relocalization**: Recovery after tracking loss
+- **Map reuse**: Save and load maps for later use
+- **Visual-inertial initialization**: Robust initialization using IMU data
+
+## Use Cases and Applications
+
+ORB-SLAM3 is designed for a wide range of robotics and computer vision applications:
+
+- **Autonomous Navigation**: Robot localization and mapping in unknown environments
+- **Augmented Reality**: Real-time camera pose estimation for AR applications
+- **Drones and UAVs**: Visual-inertial odometry for aerial vehicles
+- **Mobile Robotics**: Indoor and outdoor navigation for wheeled robots
+- **Research**: Benchmark and baseline for SLAM algorithm development
+
+## Architecture Overview
+
+ORB-SLAM3 consists of three main parallel threads:
+
+1. **Tracking**: Localizes the camera with every frame and decides when to insert new keyframes
+2. **Local Mapping**: Processes new keyframes and performs local bundle adjustment
+3. **Loop Closing**: Detects large loops and performs pose-graph optimization
+
+The system uses:
+- **ORB features**: Fast and robust binary features for matching
+- **DBoW2**: Place recognition for loop detection and relocalization
+- **g2o**: Graph optimization framework for bundle adjustment
+
+## Performance
+
+ORB-SLAM3 has been tested on popular datasets:
+
+- **EuRoC dataset**: MAV with stereo cameras and IMU (pin-hole lenses)
+- **TUM-VI dataset**: Handheld device with stereo fisheye cameras and IMU
+- **KITTI dataset**: Automotive stereo camera setup
+- **TUM RGB-D dataset**: RGB-D camera sequences
+
+<Note>
+  A powerful computer (e.g., Intel i7 or equivalent) is recommended to ensure real-time performance and more stable, accurate results.
+</Note>
+
+## Related Publications
+
+ORB-SLAM3 is built on years of research in Visual SLAM:
+
+- **[ORB-SLAM3]** Carlos Campos, Richard Elvira, Juan J. Gómez Rodríguez, José M. M. Montiel and Juan D. Tardós, *ORB-SLAM3: An Accurate Open-Source Library for Visual, Visual-Inertial and Multi-Map SLAM*, IEEE Transactions on Robotics 37(6):1874-1890, Dec. 2021. [PDF](https://arxiv.org/abs/2007.11898)
+
+- **[IMU-Initialization]** Carlos Campos, J. M. M. Montiel and Juan D. Tardós, *Inertial-Only Optimization for Visual-Inertial Initialization*, ICRA 2020. [PDF](https://arxiv.org/pdf/2003.05766.pdf)
+
+- **[ORBSLAM-Atlas]** Richard Elvira, J. M. M. Montiel and Juan D. Tardós, *ORBSLAM-Atlas: a robust and accurate multi-map system*, IROS 2019. [PDF](https://arxiv.org/pdf/1908.11585.pdf)
+
+- **[ORBSLAM-VI]** Raúl Mur-Artal, and Juan D. Tardós, *Visual-inertial monocular SLAM with map reuse*, IEEE Robotics and Automation Letters, vol. 2 no. 2, pp. 796-803, 2017. [PDF](https://arxiv.org/pdf/1610.05949.pdf)
+
+- **[ORB-SLAM2]** Raúl Mur-Artal and Juan D. Tardós. *ORB-SLAM2: an Open-Source SLAM System for Monocular, Stereo and RGB-D Cameras*. IEEE Transactions on Robotics, vol. 33, no. 5, pp. 1255-1262, 2017. [PDF](https://arxiv.org/pdf/1610.06475.pdf)
+
+## License
+
+ORB-SLAM3 is released under the [GPLv3 license](https://github.com/UZ-SLAMLab/ORB_SLAM3/LICENSE). For commercial use, please contact the authors at orbslam (at) unizar (dot) es.
+
+### Citation
+
+If you use ORB-SLAM3 in an academic work, please cite:
+
+```bibtex
+@article{ORBSLAM3_TRO,
+  title={{ORB-SLAM3}: An Accurate Open-Source Library for Visual, Visual-Inertial 
+           and Multi-Map {SLAM}},
+  author={Campos, Carlos AND Elvira, Richard AND G\'omez, Juan J. AND Montiel, 
+          Jos\'e M. M. AND Tard\'os, Juan D.},
+  journal={IEEE Transactions on Robotics}, 
+  volume={37},
+  number={6},
+  pages={1874-1890},
+  year={2021}
+}
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Install ORB-SLAM3" icon="download" href="/installation">
+    Set up the library and its dependencies on your system
+  </Card>
+  <Card title="Quick Start" icon="rocket" href="/quickstart">
+    Run your first SLAM example in minutes
+  </Card>
+</CardGroup>

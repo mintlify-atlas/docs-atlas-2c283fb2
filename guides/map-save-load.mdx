@@ -1,0 +1,539 @@
+---
+title: Map Saving and Loading
+description: Persisting and reusing ORB-SLAM3 maps for localization and multi-session SLAM
+---
+
+ORB-SLAM3 supports saving and loading maps (Atlas) to enable map reuse, localization-only mode, and multi-session SLAM. This guide covers the functionality, use cases, and implementation details.
+
+## Overview
+
+Map persistence allows you to:
+
+- **Reuse previously built maps**: Load a map and localize without rebuilding
+- **Multi-session SLAM**: Continue mapping across multiple runs
+- **Localization mode**: Track camera pose in a known environment
+- **Share maps**: Transfer maps between systems or sessions
+
+<Info>
+Map saving/loading is implemented through the **Atlas** system, which manages multiple maps and their relationships.
+</Info>
+
+## Configuration
+
+Map loading and saving are configured in the YAML settings file:
+
+```yaml
+#--------------------------------------------------------------------------------------------
+# System config
+#--------------------------------------------------------------------------------------------
+
+# Load a previous Atlas from file (optional)
+System.LoadAtlasFromFile: "Session_MH01_MH02_MH03_Stereo60_Pseudo"
+
+# Save current Atlas to file (optional)
+System.SaveAtlasToFile: "Session_MH01_MH02_MH03_Stereo60_Pseudo"
+```
+
+### Configuration Options
+
+<Accordion title="System.LoadAtlasFromFile">
+  Specifies the filename to load a previously saved Atlas.
+  
+  - If the file doesn't exist, ORB-SLAM3 creates a new Atlas from scratch
+  - If the file exists, it loads all maps, keyframes, and map points
+  - Comment out or remove this line to start with an empty Atlas
+  
+  **Example**:
+  ```yaml
+  System.LoadAtlasFromFile: "my_office_map"
+  ```
+</Accordion>
+
+<Accordion title="System.SaveAtlasToFile">
+  Specifies the filename to save the Atlas after shutdown.
+  
+  - The Atlas is saved when `System::Shutdown()` is called
+  - If the file already exists, it will be overwritten
+  - Comment out to disable saving
+  
+  **Example**:
+  ```yaml
+  System.SaveAtlasToFile: "my_office_map"
+  ```
+</Accordion>
+
+<Warning>
+Both parameters are optional. If commented out, no map loading or saving occurs.
+</Warning>
+
+## API Methods
+
+While direct SaveMap/LoadMap methods are marked as TODO in `include/System.h:170-172`, the functionality is implemented through the Atlas system.
+
+### System.h Interface
+
+```cpp
+// From include/System.h
+class System
+{
+public:
+    // TODO: Save/Load functions
+    // SaveMap(const string &filename);
+    // LoadMap(const string &filename);
+    
+private:
+    void SaveAtlas(int type);
+    bool LoadAtlas(int type);
+    
+    string CalculateCheckSum(string filename, int type);
+};
+```
+
+The `SaveAtlas()` and `LoadAtlas()` methods are called internally based on the YAML configuration.
+
+### File Format
+
+ORB-SLAM3 supports two file formats:
+
+```cpp
+enum FileType {
+    TEXT_FILE = 0,
+    BINARY_FILE = 1,
+};
+```
+
+<Tabs>
+  <Tab title="Binary Format (Recommended)">
+    **Advantages**:
+    - Faster loading and saving
+    - Smaller file size
+    - Preserves floating-point precision
+    
+    **Usage**: Default format used by SaveAtlas/LoadAtlas
+  </Tab>
+  
+  <Tab title="Text Format">
+    **Advantages**:
+    - Human-readable (for debugging)
+    - Portable across platforms
+    
+    **Disadvantages**:
+    - Slower I/O
+    - Larger file size
+    - Potential precision loss
+  </Tab>
+</Tabs>
+
+## Use Cases
+
+### 1. Build and Save a Map
+
+Create a map from a dataset and save it for future use:
+
+<Steps>
+  <Step title="Configure save path">
+    Edit your YAML config:
+    ```yaml
+    # Comment out load (start fresh)
+    #System.LoadAtlasFromFile: "warehouse_map"
+    
+    # Enable saving
+    System.SaveAtlasToFile: "warehouse_map"
+    ```
+  </Step>
+  
+  <Step title="Run ORB-SLAM3">
+    ```bash
+    ./Examples/Stereo/stereo_euroc \
+      Vocabulary/ORBvoc.txt \
+      Examples/Stereo/EuRoC.yaml \
+      /path/to/dataset \
+      EuRoC_TimeStamps/MH01.txt
+    ```
+  </Step>
+  
+  <Step title="Wait for completion">
+    The system will build the map as usual. After completion, it automatically saves the Atlas.
+  </Step>
+  
+  <Step title="Verify saved map">
+    ```bash
+    ls -lh warehouse_map*
+    # Should see the saved Atlas file
+    ```
+  </Step>
+</Steps>
+
+### 2. Localization in a Known Map
+
+Load a previously built map and localize only (no mapping):
+
+<Steps>
+  <Step title="Configure load path">
+    ```yaml
+    # Load existing map
+    System.LoadAtlasFromFile: "warehouse_map"
+    
+    # Optionally save updates
+    #System.SaveAtlasToFile: "warehouse_map_updated"
+    ```
+  </Step>
+  
+  <Step title="Activate localization mode">
+    ```cpp
+    // In your code or modified example
+    SLAM.ActivateLocalizationMode();
+    ```
+  </Step>
+  
+  <Step title="Run ORB-SLAM3">
+    The system loads the map and performs localization without creating new map points:
+    ```bash
+    ./Examples/Stereo/stereo_euroc \
+      Vocabulary/ORBvoc.txt \
+      Examples/Stereo/EuRoC_localization.yaml \
+      /path/to/new_sequence \
+      timestamps.txt
+    ```
+  </Step>
+</Steps>
+
+<Tip>
+Localization mode is more efficient than full SLAM and useful for navigation in known environments.
+</Tip>
+
+### 3. Multi-Session SLAM
+
+Continue mapping across multiple runs:
+
+<Steps>
+  <Step title="First session - Build initial map">
+    ```yaml
+    # Start fresh
+    #System.LoadAtlasFromFile: "campus_map"
+    System.SaveAtlasToFile: "campus_map"
+    ```
+    
+    Run ORB-SLAM3 on first sequence.
+  </Step>
+  
+  <Step title="Second session - Extend map">
+    ```yaml
+    # Load previous map
+    System.LoadAtlasFromFile: "campus_map"
+    # Save extended map
+    System.SaveAtlasToFile: "campus_map_extended"
+    ```
+    
+    Run on a new sequence that overlaps with the first.
+  </Step>
+  
+  <Step title="Subsequent sessions">
+    Continue loading and saving to incrementally build a larger map:
+    ```yaml
+    System.LoadAtlasFromFile: "campus_map_extended"
+    System.SaveAtlasToFile: "campus_map_complete"
+    ```
+  </Step>
+</Steps>
+
+### 4. Map Sharing
+
+Transfer maps between systems:
+
+```bash
+# On system A: Save map
+./stereo_euroc vocab.txt config_save.yaml dataset timestamps
+
+# Copy map file to system B
+scp warehouse_map user@systemB:/path/to/ORB_SLAM3/
+
+# On system B: Load and use map
+./stereo_euroc vocab.txt config_load.yaml new_dataset timestamps
+```
+
+<Warning>
+Ensure both systems use:
+- Same ORB-SLAM3 version
+- Same vocabulary file
+- Compatible camera calibration (same camera or equivalent calibration)
+</Warning>
+
+## Atlas Structure
+
+The Atlas manages multiple maps and handles map merging:
+
+```cpp
+class Atlas
+{
+    std::vector<Map*> mvpMaps;  // All maps in the Atlas
+    Map* mpCurrentMap;           // Active map
+    
+    // Map management
+    void CreateNewMap();
+    void SetCurrentMap(Map* pMap);
+    
+    // Serialization
+    void PreSave();
+    void Save(const string &filename);
+    void Load(const string &filename);
+};
+```
+
+### Multi-Map SLAM
+
+ORB-SLAM3's Atlas can maintain multiple maps simultaneously:
+
+- **Map creation**: New map created when tracking is lost and cannot relocalize
+- **Map switching**: System switches between maps during relocalization
+- **Map merging**: Related maps can be merged through loop closure
+
+## Implementation Details
+
+### Saving Process
+
+<Steps>
+  <Step title="Shutdown called">
+    When `System::Shutdown()` is called, the system:
+    - Stops all threads (Tracking, LocalMapping, LoopClosing)
+    - Waits for pending operations to complete
+  </Step>
+  
+  <Step title="Prepare Atlas">
+    `Atlas::PreSave()` prepares data structures:
+    - Resolves all keyframe and map point references
+    - Serializes covisibility graph
+    - Prepares essential metadata
+  </Step>
+  
+  <Step title="Serialize to disk">
+    `SaveAtlas(int type)` writes to file:
+    - Uses Boost serialization
+    - Includes checksum for integrity verification
+    - Saves all maps in the Atlas
+  </Step>
+</Steps>
+
+### Loading Process
+
+<Steps>
+  <Step title="System initialization">
+    During `System` constructor, if `LoadAtlasFromFile` is specified:
+  </Step>
+  
+  <Step title="Load Atlas">
+    `LoadAtlas(int type)` reads from file:
+    - Verifies checksum
+    - Deserializes maps, keyframes, map points
+    - Restores graph structure
+  </Step>
+  
+  <Step title="Initialize tracking">
+    Tracking thread starts with loaded map:
+    - Can immediately attempt relocalization
+    - No initialization phase needed if map valid
+  </Step>
+</Steps>
+
+## File Management
+
+### Map File Naming
+
+By convention, use descriptive names:
+
+```yaml
+# Good examples
+System.SaveAtlasToFile: "office_floor3_stereo_2024"
+System.SaveAtlasToFile: "warehouse_section_A_rgbd"
+System.SaveAtlasToFile: "campus_outdoor_mono_inertial"
+
+# Include: location, sensor type, date/version
+```
+
+### Storage Requirements
+
+Map file sizes vary based on:
+
+- **Scene size**: Larger environments = larger maps
+- **Mapping duration**: Longer runs = more keyframes
+- **ORB features**: More features per frame = larger storage
+
+**Typical sizes**:
+- Small indoor (2-5 min): 50-200 MB
+- Large indoor (10-20 min): 200-800 MB  
+- Outdoor sequences: 500 MB - 2 GB+
+
+<Tip>
+Compress map files for long-term storage:
+```bash
+tar -czf warehouse_map.tar.gz warehouse_map
+```
+</Tip>
+
+### Backup Strategy
+
+```bash
+# After successful SLAM run, backup map
+cp warehouse_map warehouse_map.backup
+
+# Before risky operations (extending, merging)
+cp campus_map campus_map_$(date +%Y%m%d)
+
+# Regular backups
+cp office_map office_map_v1  # Version control
+```
+
+## Troubleshooting
+
+<Accordion title="Map fails to load">
+  **Symptoms**: Error message on startup, system starts with empty Atlas
+  
+  **Possible causes**:
+  - Map file doesn't exist at specified path
+  - File corrupted or incomplete
+  - Incompatible ORB-SLAM3 version
+  - Checksum verification failed
+  
+  **Solutions**:
+  ```bash
+  # Verify file exists
+  ls -lh warehouse_map
+  
+  # Check for error messages in terminal
+  # Try loading with absolute path
+  System.LoadAtlasFromFile: "/full/path/to/warehouse_map"
+  
+  # If corrupted, restore from backup
+  cp warehouse_map.backup warehouse_map
+  ```
+</Accordion>
+
+<Accordion title="Map loads but relocalization fails">
+  **Symptoms**: Map loaded successfully, but tracking cannot initialize
+  
+  **Possible causes**:
+  - Camera in area not covered by loaded map
+  - Different lighting conditions
+  - Camera calibration changed
+  - Vocabulary mismatch
+  
+  **Solutions**:
+  - Start in area where map was originally built
+  - Ensure consistent lighting
+  - Verify camera calibration matches map session
+  - Move camera to help relocalization (show distinctive features)
+  - Consider using ORB parameter tuning for challenging conditions
+</Accordion>
+
+<Accordion title="Localization mode not working">
+  **Symptoms**: System continues creating new map points despite localization mode
+  
+  **Solution**: Ensure `ActivateLocalizationMode()` is called after System initialization:
+  
+  ```cpp
+  ORB_SLAM3::System SLAM(vocab, settings, sensor_type, true);
+  
+  // Activate localization mode
+  SLAM.ActivateLocalizationMode();
+  
+  // Now process frames
+  ```
+  
+  To resume mapping:
+  ```cpp
+  SLAM.DeactivateLocalizationMode();
+  ```
+</Accordion>
+
+<Accordion title="Map file very large">
+  **Symptoms**: Map file grows to several GB, causing slow load times
+  
+  **Causes**:
+  - Very long mapping sessions
+  - High feature count settings
+  - Multiple maps in Atlas
+  
+  **Solutions**:
+  - Reduce `ORBextractor.nFeatures` for future sessions
+  - Use keyframe culling (automatic in ORB-SLAM3)
+  - Split into multiple smaller maps
+  - Compress old maps for archival:
+    ```bash
+    tar -czf old_maps.tar.gz map1 map2 map3
+    ```
+</Accordion>
+
+<Accordion title="Cannot save map after run">
+  **Symptoms**: No map file created, or file incomplete
+  
+  **Causes**:
+  - Insufficient disk space
+  - No write permissions
+  - System crashed before shutdown
+  
+  **Solutions**:
+  ```bash
+  # Check disk space
+  df -h .
+  
+  # Check write permissions
+  touch test_write && rm test_write
+  
+  # Ensure proper shutdown (call Shutdown() before exit)
+  # Always call System::Shutdown() to trigger save
+  ```
+</Accordion>
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Map Building" icon="map">
+    - Use high-quality calibration
+    - Ensure good visual coverage
+    - Include loop closures for consistency
+    - Verify map quality before saving
+    - Backup important maps
+  </Card>
+  
+  <Card title="Map Loading" icon="folder-open">
+    - Start in mapped area
+    - Use same vocabulary file
+    - Match camera calibration
+    - Test relocalization before deployment
+    - Monitor tracking status
+  </Card>
+  
+  <Card title="Localization Mode" icon="location-dot">
+    - Load established, optimized map
+    - Disable mapping for efficiency
+    - Handle tracking loss gracefully
+    - Provide relocalization assistance
+    - Log pose estimates
+  </Card>
+  
+  <Card title="Multi-Session" icon="timeline">
+    - Maintain version history
+    - Use descriptive filenames
+    - Verify map merging
+    - Test incrementally
+    - Document map coverage
+  </Card>
+</CardGroup>
+
+## Future Development
+
+The TODO comment in System.h suggests future public API methods:
+
+```cpp
+// Potential future API
+void SaveMap(const string &filename);  // Save current map
+void LoadMap(const string &filename);  // Load specific map
+```
+
+Currently, use the YAML configuration approach for map persistence.
+
+## Next Steps
+
+- [ROS Integration](/guides/ros-integration) - Use map persistence with ROS nodes
+- [Configuration Guide](/guides/configuration) - Configure Atlas settings
+- [System API Reference](/api/system) - Detailed System class documentation

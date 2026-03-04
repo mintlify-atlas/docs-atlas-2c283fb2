@@ -1,0 +1,436 @@
+---
+title: 'Tracking'
+description: 'Complete API reference for the ORB_SLAM3::Tracking class'
+---
+
+## Overview
+
+The `Tracking` class is responsible for processing incoming frames, estimating camera pose, and deciding when to create new keyframes. It performs feature extraction, matching, relocalization, and local map tracking.
+
+## Constructor
+
+```cpp
+Tracking(System* pSys, 
+         ORBVocabulary* pVoc, 
+         FrameDrawer* pFrameDrawer, 
+         MapDrawer* pMapDrawer, 
+         Atlas* pAtlas,
+         KeyFrameDatabase* pKFDB, 
+         const string &strSettingPath, 
+         const int sensor, 
+         Settings* settings, 
+         const string &_nameSeq = std::string())
+```
+
+### Parameters
+
+- `pSys`: Pointer to the System object
+- `pVoc`: Pointer to ORB vocabulary for place recognition
+- `pFrameDrawer`: Pointer to frame drawer for visualization
+- `pMapDrawer`: Pointer to map drawer for visualization
+- `pAtlas`: Pointer to Atlas (multi-map manager)
+- `pKFDB`: Pointer to KeyFrame database
+- `strSettingPath`: Path to settings configuration file
+- `sensor`: Sensor type (MONOCULAR, STEREO, RGBD, etc.)
+- `settings`: Pointer to Settings object
+- `_nameSeq`: Optional sequence name
+
+## Enumerations
+
+### eTrackingState
+
+Defines the current tracking state:
+
+```cpp
+enum eTrackingState {
+    SYSTEM_NOT_READY = -1,
+    NO_IMAGES_YET = 0,
+    NOT_INITIALIZED = 1,
+    OK = 2,
+    RECENTLY_LOST = 3,
+    LOST = 4,
+    OK_KLT = 5
+}
+```
+
+**States:**
+- `SYSTEM_NOT_READY`: System is initializing
+- `NO_IMAGES_YET`: No frames received yet
+- `NOT_INITIALIZED`: Waiting for initialization
+- `OK`: Tracking successfully
+- `RECENTLY_LOST`: Tracking lost recently, attempting recovery
+- `LOST`: Tracking lost, performing relocalization
+- `OK_KLT`: Tracking with KLT optical flow
+
+## Image Processing Methods
+
+### GrabImageMonocular
+
+```cpp
+Sophus::SE3f GrabImageMonocular(const cv::Mat &im, 
+                                const double &timestamp, 
+                                string filename)
+```
+
+Preprocesses and tracks a monocular image. Extracts ORB features and calls Track().
+
+**Parameters:**
+- `im`: Input image (RGB or grayscale)
+- `timestamp`: Image timestamp
+- `filename`: Optional filename for debugging
+
+**Returns:** Estimated camera pose (SE3 transformation)
+
+### GrabImageStereo
+
+```cpp
+Sophus::SE3f GrabImageStereo(const cv::Mat &imRectLeft,
+                             const cv::Mat &imRectRight, 
+                             const double &timestamp, 
+                             string filename)
+```
+
+Preprocesses stereo pair, extracts features, performs stereo matching, and tracks.
+
+**Parameters:**
+- `imRectLeft`: Left rectified image
+- `imRectRight`: Right rectified image
+- `timestamp`: Image timestamp
+- `filename`: Optional filename for debugging
+
+**Returns:** Estimated camera pose (SE3 transformation)
+
+### GrabImageRGBD
+
+```cpp
+Sophus::SE3f GrabImageRGBD(const cv::Mat &imRGB,
+                           const cv::Mat &imD, 
+                           const double &timestamp, 
+                           string filename)
+```
+
+Processes RGB-D frame with registered depth map.
+
+**Parameters:**
+- `imRGB`: RGB image
+- `imD`: Depth map (CV_32F)
+- `timestamp`: Image timestamp
+- `filename`: Optional filename for debugging
+
+**Returns:** Estimated camera pose (SE3 transformation)
+
+### GrabImuData
+
+```cpp
+void GrabImuData(const IMU::Point &imuMeasurement)
+```
+
+Adds an IMU measurement to the queue for inertial integration.
+
+**Parameters:**
+- `imuMeasurement`: IMU data point (acceleration and angular velocity)
+
+## Configuration Methods
+
+### SetLocalMapper
+
+```cpp
+void SetLocalMapper(LocalMapping* pLocalMapper)
+```
+
+Sets the pointer to the Local Mapping thread.
+
+### SetLoopClosing
+
+```cpp
+void SetLoopClosing(LoopClosing* pLoopClosing)
+```
+
+Sets the pointer to the Loop Closing thread.
+
+### SetViewer
+
+```cpp
+void SetViewer(Viewer* pViewer)
+```
+
+Sets the pointer to the Viewer thread.
+
+### ChangeCalibration
+
+```cpp
+void ChangeCalibration(const string &strSettingPath)
+```
+
+Loads new camera calibration parameters. The focal length should be similar to avoid scale prediction failures.
+
+**Parameters:**
+- `strSettingPath`: Path to new calibration file
+
+## Mode Control
+
+### InformOnlyTracking
+
+```cpp
+void InformOnlyTracking(const bool &flag)
+```
+
+Enables/disables localization-only mode (no mapping).
+
+**Parameters:**
+- `flag`: True for localization-only, false for full SLAM
+
+### SetStepByStep
+
+```cpp
+void SetStepByStep(bool bSet)
+```
+
+Enables/disables step-by-step mode for debugging.
+
+### GetStepByStep
+
+```cpp
+bool GetStepByStep()
+```
+
+**Returns:** Current step-by-step mode state
+
+## State Management
+
+### Reset
+
+```cpp
+void Reset(bool bLocMap = false)
+```
+
+Resets the tracking state.
+
+**Parameters:**
+- `bLocMap`: If true, resets local mapping as well
+
+### ResetActiveMap
+
+```cpp
+void ResetActiveMap(bool bLocMap = false)
+```
+
+Resets only the active map.
+
+**Parameters:**
+- `bLocMap`: If true, resets local mapping as well
+
+### CreateMapInAtlas
+
+```cpp
+void CreateMapInAtlas()
+```
+
+Creates a new map in the Atlas and sets it as active.
+
+## Information Retrieval
+
+### GetLastKeyFrame
+
+```cpp
+KeyFrame* GetLastKeyFrame()
+```
+
+**Returns:** Pointer to the most recently created keyframe
+
+### GetMatchesInliers
+
+```cpp
+int GetMatchesInliers()
+```
+
+**Returns:** Number of inlier matches in the current frame
+
+### GetLocalMapMPS
+
+```cpp
+vector<MapPoint*> GetLocalMapMPS()
+```
+
+**Returns:** Vector of map points in the local map
+
+### GetImageScale
+
+```cpp
+float GetImageScale()
+```
+
+**Returns:** Current image scale factor
+
+### GetNumberDataset
+
+```cpp
+int GetNumberDataset()
+```
+
+**Returns:** Current dataset number in multi-sequence processing
+
+## IMU Methods
+
+### UpdateFrameIMU
+
+```cpp
+void UpdateFrameIMU(const float s, 
+                   const IMU::Bias &b, 
+                   KeyFrame* pCurrentKeyFrame)
+```
+
+Updates frame with IMU integration results.
+
+**Parameters:**
+- `s`: Scale factor
+- `b`: IMU bias
+- `pCurrentKeyFrame`: Reference keyframe
+
+## Debugging and Logging
+
+### SaveSubTrajectory
+
+```cpp
+void SaveSubTrajectory(string strNameFile_frames, 
+                       string strNameFile_kf, 
+                       string strFolder = "")
+void SaveSubTrajectory(string strNameFile_frames, 
+                       string strNameFile_kf, 
+                       Map* pMap)
+```
+
+Saves a sub-trajectory for debugging purposes.
+
+**Parameters:**
+- `strNameFile_frames`: Filename for frame trajectory
+- `strNameFile_kf`: Filename for keyframe trajectory
+- `strFolder`: Optional output folder
+- `pMap`: Optional specific map to save
+
+### NewDataset
+
+```cpp
+void NewDataset()
+```
+
+Signals the start of a new dataset sequence.
+
+## Configuration Parsing
+
+### ParseCamParamFile
+
+```cpp
+bool ParseCamParamFile(cv::FileStorage &fSettings)
+```
+
+Parses camera parameters from configuration file.
+
+**Returns:** True if parsing succeeded
+
+### ParseORBParamFile
+
+```cpp
+bool ParseORBParamFile(cv::FileStorage &fSettings)
+```
+
+Parses ORB extractor parameters from configuration file.
+
+**Returns:** True if parsing succeeded
+
+### ParseIMUParamFile
+
+```cpp
+bool ParseIMUParamFile(cv::FileStorage &fSettings)
+```
+
+Parses IMU parameters from configuration file.
+
+**Returns:** True if parsing succeeded
+
+## Public Member Variables
+
+### State Variables
+
+```cpp
+eTrackingState mState;              // Current tracking state
+eTrackingState mLastProcessedState;  // Last processed state
+int mSensor;                         // Sensor type
+```
+
+### Frame Data
+
+```cpp
+Frame mCurrentFrame;  // Current frame being processed
+Frame mLastFrame;     // Previous frame
+cv::Mat mImGray;      // Current grayscale image
+cv::Mat mImRight;     // Right image (for stereo)
+```
+
+### Trajectory Information
+
+```cpp
+list<Sophus::SE3f> mlRelativeFramePoses;  // Relative frame poses
+list<KeyFrame*> mlpReferences;            // Reference keyframes
+list<double> mlFrameTimes;                // Frame timestamps
+list<bool> mlbLost;                       // Lost tracking flags
+```
+
+### Tracking Flags
+
+```cpp
+bool mbOnlyTracking;  // True if in localization-only mode
+bool mbVO;            // True if doing visual odometry
+int mTrackedFr;       // Number of tracked frames
+```
+
+## Usage Example
+
+```cpp
+// Tracking is typically created and managed by the System class
+// Direct usage example:
+
+ORB_SLAM3::Tracking tracker(pSystem, pVocabulary, pFrameDrawer, 
+                            pMapDrawer, pAtlas, pKeyFrameDB, 
+                            "config.yaml", 
+                            ORB_SLAM3::System::MONOCULAR,
+                            pSettings);
+
+tracker.SetLocalMapper(pLocalMapper);
+tracker.SetLoopClosing(pLoopClosing);
+tracker.SetViewer(pViewer);
+
+// Process a frame
+cv::Mat image = cv::imread("frame.png", cv::IMREAD_GRAYSCALE);
+Sophus::SE3f pose = tracker.GrabImageMonocular(image, timestamp, "frame.png");
+
+if (tracker.mState == ORB_SLAM3::Tracking::OK) {
+    std::cout << "Tracking OK" << std::endl;
+    std::cout << "Inliers: " << tracker.GetMatchesInliers() << std::endl;
+} else if (tracker.mState == ORB_SLAM3::Tracking::LOST) {
+    std::cout << "Tracking lost, attempting relocalization" << std::endl;
+}
+```
+
+## Tracking Pipeline
+
+The internal tracking pipeline follows these steps:
+
+1. **Feature Extraction**: Extract ORB features from the input image
+2. **Initial Pose Estimation**:
+   - If initialized: Use motion model or reference keyframe
+   - If not initialized: Perform initialization
+3. **Track Local Map**: Match features with local map points
+4. **Pose Optimization**: Optimize camera pose using matched points
+5. **Keyframe Decision**: Decide if a new keyframe should be created
+6. **Update Local Map**: Update local keyframes and map points
+
+## Thread Safety
+
+The Tracking class runs in the main thread and communicates with other threads (Local Mapping, Loop Closing) through thread-safe queues and mutexes.
+
+## Related Classes
+
+- [System](/api/system) - Main SLAM system interface
+- [LocalMapping](/api/local-mapping) - Local map optimization
+- [LoopClosing](/api/loop-closing) - Loop detection and global optimization

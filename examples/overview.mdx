@@ -1,0 +1,224 @@
+---
+title: Examples Overview
+description: Running ORB-SLAM3 with different datasets and camera configurations
+---
+
+ORB-SLAM3 provides a comprehensive set of example programs for testing and running SLAM with various sensor configurations and datasets. All examples are built automatically when you compile the library.
+
+## Available Example Programs
+
+The library includes examples for all supported sensor configurations:
+
+<CardGroup cols={2}>
+  <Card title="Monocular" icon="camera">
+    Single camera SLAM
+    - `mono_euroc`
+    - `mono_tum_vi`
+    - `mono_kitti`
+    - `mono_realsense_D435i`
+    - `mono_realsense_t265`
+  </Card>
+  
+  <Card title="Stereo" icon="images">
+    Dual camera SLAM
+    - `stereo_euroc`
+    - `stereo_tum_vi`
+    - `stereo_kitti`
+    - `stereo_realsense_D435i`
+    - `stereo_realsense_t265`
+  </Card>
+  
+  <Card title="RGB-D" icon="cube">
+    Depth camera SLAM
+    - `rgbd_tum`
+    - `rgbd_realsense_D435i`
+  </Card>
+  
+  <Card title="Visual-Inertial" icon="compass">
+    Camera + IMU fusion
+    - `mono_inertial_euroc`
+    - `mono_inertial_tum_vi`
+    - `stereo_inertial_euroc`
+    - `stereo_inertial_tum_vi`
+    - `mono_inertial_realsense_D435i`
+    - `mono_inertial_realsense_t265`
+    - `stereo_inertial_realsense_D435i`
+    - `stereo_inertial_realsense_t265`
+  </Card>
+</CardGroup>
+
+## Supported Datasets
+
+ORB-SLAM3 has been extensively tested on several public datasets:
+
+### EuRoC MAV Dataset
+Recorded with two pinhole cameras and an IMU. Contains 11 sequences with ground truth trajectories.
+- Visual (monocular/stereo)
+- Visual-Inertial (monocular/stereo + IMU)
+- Pinhole camera model
+
+[Learn more about EuRoC examples →](/examples/euroc-dataset)
+
+### TUM-VI Dataset
+Recorded with two fisheye cameras and an IMU. Includes indoor and outdoor sequences.
+- Visual (monocular/stereo)
+- Visual-Inertial (monocular/stereo + IMU)
+- Fisheye camera model
+
+[Learn more about TUM-VI examples →](/examples/tum-vi-dataset)
+
+### KITTI Dataset
+Autonomous driving dataset with stereo cameras.
+- Monocular sequences
+- Stereo sequences
+- Large-scale outdoor environments
+
+[Learn more about KITTI examples →](/examples/kitti-dataset)
+
+### Live Camera Support
+Run SLAM in real-time with Intel RealSense cameras.
+- RealSense D435i (stereo infrared + IMU)
+- RealSense T265 (fisheye stereo + IMU)
+
+[Learn more about RealSense examples →](/examples/realsense-cameras)
+
+## Running Examples
+
+<Steps>
+  <Step title="Build the library">
+    First, ensure ORB-SLAM3 is compiled:
+    ```bash
+    cd ORB_SLAM3
+    ./build.sh
+    ```
+    This creates executables in the `Examples/` folder.
+  </Step>
+  
+  <Step title="Download or prepare data">
+    For dataset examples, download the sequence data.
+    For live cameras, connect your device via USB.
+  </Step>
+  
+  <Step title="Run the example">
+    Execute the appropriate program with required arguments:
+    ```bash
+    ./Examples/<Type>/<executable> Vocabulary/ORBvoc.txt <settings.yaml> <data_path>
+    ```
+  </Step>
+</Steps>
+
+## Expected Outputs
+
+When running examples, ORB-SLAM3 produces:
+
+<AccordionGroup>
+  <Accordion title="Real-time Visualization">
+    A Pangolin viewer window displays:
+    - Current frame with tracked features
+    - 3D map points
+    - Camera trajectory
+    - Keyframes
+  </Accordion>
+  
+  <Accordion title="Trajectory Files">
+    Saved trajectories in TUM or EuRoC format:
+    - `CameraTrajectory.txt` - All frame poses
+    - `KeyFrameTrajectory.txt` - Keyframe poses only
+    
+    Format (TUM):
+    ```
+    timestamp tx ty tz qx qy qz qw
+    ```
+  </Accordion>
+  
+  <Accordion title="Console Output">
+    Terminal displays:
+    - Tracking status (SLAM, Tracking Only, Lost)
+    - Frame processing times
+    - Number of tracked features
+    - Map statistics
+  </Accordion>
+  
+  <Accordion title="Timing Statistics (Optional)">
+    When compiled with `REGISTER_TIMES`:
+    - `ExecTimeMean.txt` - Execution time statistics
+    - Per-module timing breakdowns
+  </Accordion>
+</AccordionGroup>
+
+## Evaluation Tools
+
+ORB-SLAM3 includes scripts for trajectory evaluation:
+
+### EuRoC Evaluation
+```bash
+./euroc_eval_examples
+```
+Processes all EuRoC sequences and computes RMS ATE (Absolute Trajectory Error) against ground truth.
+
+### TUM-VI Evaluation
+```bash
+./tum_vi_eval_examples
+```
+Evaluates drift at sequence end points where ground truth is available.
+
+### Python Evaluation Tools
+The library uses Python scripts for trajectory alignment:
+```bash
+python evaluation/evaluate_ate_scale.py <groundtruth.txt> <estimated.txt>
+```
+
+<Note>
+Evaluation scripts require Python with NumPy installed.
+</Note>
+
+## Common Arguments
+
+Most examples follow this pattern:
+
+```bash
+./<executable> <vocabulary> <settings> <sequence_path> [output_name]
+```
+
+| Argument | Description |
+|----------|-------------|
+| `vocabulary` | Path to ORB vocabulary file (usually `Vocabulary/ORBvoc.txt`) |
+| `settings` | YAML configuration file with camera calibration and parameters |
+| `sequence_path` | Path to dataset sequence folder |
+| `output_name` | (Optional) Prefix for output trajectory files |
+
+## Performance Tips
+
+<CardGroup cols={2}>
+  <Card title="Hardware" icon="server">
+    - Use a powerful CPU (i7 or better recommended)
+    - Run on native Linux for best performance
+    - Close unnecessary applications
+  </Card>
+  
+  <Card title="Configuration" icon="sliders">
+    - Adjust `ORBextractor.nFeatures` for speed/accuracy trade-off
+    - Use image downsampling for faster processing
+    - Disable viewer for maximum speed
+  </Card>
+</CardGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="EuRoC Dataset" icon="drone" href="/examples/euroc-dataset">
+    Run examples with pinhole cameras and IMU
+  </Card>
+  
+  <Card title="TUM-VI Dataset" icon="building" href="/examples/tum-vi-dataset">
+    Run examples with fisheye cameras
+  </Card>
+  
+  <Card title="KITTI Dataset" icon="car" href="/examples/kitti-dataset">
+    Process autonomous driving sequences
+  </Card>
+  
+  <Card title="RealSense Cameras" icon="video" href="/examples/realsense-cameras">
+    Real-time SLAM with live cameras
+  </Card>
+</CardGroup>

@@ -1,0 +1,480 @@
+---
+title: "Atlas"
+description: "Multi-map management system for storing and switching between multiple maps"
+---
+
+## Overview
+
+The `Atlas` class is ORB-SLAM3's multi-map management system. It maintains a collection of Map instances, manages the active map, handles map creation and switching, and supports map merging operations. The Atlas enables robust operation in scenarios with tracking failures and relocalization by maintaining multiple independent maps.
+
+```cpp
+namespace ORB_SLAM3 {
+    class Atlas;
+}
+```
+
+Defined in: `Atlas.h:49`
+
+## Key Features
+
+- Multi-map storage and management
+- Active map switching and selection
+- Map creation on tracking failure
+- Map merging when loop closure detected between maps
+- Camera calibration management
+- Global ID management for Frame, KeyFrame, MapPoint
+- Map serialization and loading support
+
+## Constructors
+
+### Default Constructor
+
+```cpp
+Atlas();
+```
+
+Creates an empty Atlas.
+
+### Constructor with Initial KeyFrame ID
+
+```cpp
+Atlas(int initKFid);
+```
+
+Creates an Atlas and initializes the first map.
+
+**Parameters:**
+- `initKFid` - Initial KeyFrame ID for the first map
+
+## Map Management
+
+### CreateNewMap
+
+```cpp
+void CreateNewMap();
+```
+
+Creates and activates a new map. Called when tracking is lost and cannot be recovered.
+
+### ChangeMap
+
+```cpp
+void ChangeMap(Map* pMap);
+```
+
+Switches the active map to the specified map.
+
+**Parameters:**
+- `pMap` - Map to activate
+
+### GetCurrentMap
+
+```cpp
+Map* GetCurrentMap();
+```
+
+Returns a pointer to the currently active map.
+
+### GetAllMaps
+
+```cpp
+vector<Map*> GetAllMaps();
+```
+
+Returns all maps in the Atlas.
+
+### CountMaps
+
+```cpp
+int CountMaps();
+```
+
+Returns the number of maps in the Atlas.
+
+### SetMapBad
+
+```cpp
+void SetMapBad(Map* pMap);
+```
+
+Marks a map as bad (to be deleted).
+
+### RemoveBadMaps
+
+```cpp
+void RemoveBadMaps();
+```
+
+Removes all maps marked as bad from the Atlas.
+
+### clearMap
+
+```cpp
+void clearMap();
+```
+
+Clears the current map.
+
+### clearAtlas
+
+```cpp
+void clearAtlas();
+```
+
+Clears all maps from the Atlas.
+
+## Adding Elements to Current Map
+
+These methods operate on the currently active map.
+
+### AddKeyFrame
+
+```cpp
+void AddKeyFrame(KeyFrame* pKF);
+```
+
+Adds a KeyFrame to the current map.
+
+### AddMapPoint
+
+```cpp
+void AddMapPoint(MapPoint* pMP);
+```
+
+Adds a MapPoint to the current map.
+
+### SetReferenceMapPoints
+
+```cpp
+void SetReferenceMapPoints(const std::vector<MapPoint*> &vpMPs);
+```
+
+Sets the reference MapPoints for the current map.
+
+## Querying Current Map
+
+### GetAllKeyFrames
+
+```cpp
+std::vector<KeyFrame*> GetAllKeyFrames();
+```
+
+Returns all KeyFrames in the current map.
+
+### GetAllMapPoints
+
+```cpp
+std::vector<MapPoint*> GetAllMapPoints();
+```
+
+Returns all MapPoints in the current map.
+
+### GetReferenceMapPoints
+
+```cpp
+std::vector<MapPoint*> GetReferenceMapPoints();
+```
+
+Returns the reference MapPoints of the current map.
+
+### KeyFramesInMap
+
+```cpp
+long unsigned KeyFramesInMap();
+```
+
+Returns the number of KeyFrames in the current map.
+
+### MapPointsInMap
+
+```cpp
+long unsigned int MapPointsInMap();
+```
+
+Returns the number of MapPoints in the current map.
+
+## Global Queries
+
+### GetAtlasKeyframes
+
+```cpp
+map<long unsigned int, KeyFrame*> GetAtlasKeyframes();
+```
+
+Returns all KeyFrames from all maps indexed by ID.
+
+### GetNumLivedKF
+
+```cpp
+long unsigned int GetNumLivedKF();
+```
+
+Returns the total number of KeyFrames across all maps.
+
+### GetNumLivedMP
+
+```cpp
+long unsigned int GetNumLivedMP();
+```
+
+Returns the total number of MapPoints across all maps.
+
+## Map Change Tracking
+
+### InformNewBigChange
+
+```cpp
+void InformNewBigChange();
+```
+
+Notifies that a big change occurred in the current map (loop closure, global BA).
+
+### GetLastBigChangeIdx
+
+```cpp
+int GetLastBigChangeIdx();
+```
+
+Returns the index of the last big change in the current map.
+
+### GetLastInitKFid
+
+```cpp
+unsigned long int GetLastInitKFid();
+```
+
+Returns the initial KeyFrame ID of the last created map.
+
+## Camera Management
+
+### AddCamera
+
+```cpp
+GeometricCamera* AddCamera(GeometricCamera* pCam);
+```
+
+Adds a camera to the Atlas and returns pointer to it (or existing camera if already present).
+
+### GetAllCameras
+
+```cpp
+std::vector<GeometricCamera*> GetAllCameras();
+```
+
+Returns all cameras registered in the Atlas.
+
+<Note>
+The Atlas stores unique camera instances to avoid duplication and ensure consistent calibration across maps.
+</Note>
+
+## Inertial SLAM
+
+### isInertial
+
+```cpp
+bool isInertial();
+```
+
+Returns true if the current map uses inertial sensor.
+
+### SetInertialSensor
+
+```cpp
+void SetInertialSensor();
+```
+
+Marks the current map as using inertial sensor.
+
+### SetImuInitialized
+
+```cpp
+void SetImuInitialized();
+```
+
+Marks IMU as initialized for the current map.
+
+### isImuInitialized
+
+```cpp
+bool isImuInitialized();
+```
+
+Returns true if IMU is initialized in the current map.
+
+## Visualization
+
+### SetViewer
+
+```cpp
+void SetViewer(Viewer* pViewer);
+```
+
+Sets the viewer for map visualization.
+
+## Database and Vocabulary
+
+### SetKeyFrameDababase
+
+```cpp
+void SetKeyFrameDababase(KeyFrameDatabase* pKFDB);
+```
+
+Sets the KeyFrame database used for place recognition.
+
+### GetKeyFrameDatabase
+
+```cpp
+KeyFrameDatabase* GetKeyFrameDatabase();
+```
+
+Returns the KeyFrame database.
+
+### SetORBVocabulary
+
+```cpp
+void SetORBVocabulary(ORBVocabulary* pORBVoc);
+```
+
+Sets the ORB vocabulary for Bag-of-Words.
+
+### GetORBVocabulary
+
+```cpp
+ORBVocabulary* GetORBVocabulary();
+```
+
+Returns the ORB vocabulary.
+
+## Serialization
+
+### PreSave
+
+```cpp
+void PreSave();
+```
+
+Prepares the Atlas for serialization (saves current state).
+
+### PostLoad
+
+```cpp
+void PostLoad();
+```
+
+Restores the Atlas after deserialization.
+
+<Info>
+The Atlas serialization includes all maps, KeyFrames, MapPoints, and their relationships, enabling save/load functionality.
+</Info>
+
+## Data Members
+
+### Map Storage
+
+```cpp
+// Current active map
+Map* mpCurrentMap;
+
+// All maps
+std::set<Map*> mspMaps;
+
+// Bad maps pending deletion
+std::set<Map*> mspBadMaps;
+
+// Backup for serialization
+std::vector<Map*> mvpBackupMaps;
+```
+
+### Camera Storage
+
+```cpp
+// All cameras in the system
+std::vector<GeometricCamera*> mvpCameras;
+```
+
+### Global IDs
+
+```cpp
+// Last initialized KeyFrame ID for map creation
+unsigned long int mnLastInitKFidMap;
+
+// Static IDs are managed through serialization:
+// - Map::nNextId
+// - Frame::nNextId
+// - KeyFrame::nNextId
+// - MapPoint::nNextId
+// - GeometricCamera::nNextId
+```
+
+### References
+
+```cpp
+// Viewer for visualization
+Viewer* mpViewer;
+bool mHasViewer;
+
+// Database and vocabulary
+KeyFrameDatabase* mpKeyFrameDB;
+ORBVocabulary* mpORBVocabulary;
+```
+
+### Thread Safety
+
+```cpp
+std::mutex mMutexAtlas;
+```
+
+## Usage Example
+
+```cpp
+// Create Atlas
+Atlas* pAtlas = new Atlas(0);
+
+// Set vocabulary and database
+pAtlas->SetORBVocabulary(pVocabulary);
+pAtlas->SetKeyFrameDababase(pKFDB);
+
+// Add camera
+GeometricCamera* pCamera = new Pinhole(params);
+pAtlas->AddCamera(pCamera);
+
+// Add elements to current map
+pAtlas->AddKeyFrame(pKF);
+pAtlas->AddMapPoint(pMP);
+
+// Get current map info
+Map* pCurrentMap = pAtlas->GetCurrentMap();
+std::cout << "Current map has " 
+          << pAtlas->KeyFramesInMap() << " KeyFrames" << std::endl;
+
+// Create new map if tracking lost
+if (trackingLost) {
+    pAtlas->CreateNewMap();
+    std::cout << "Created new map. Total maps: " 
+              << pAtlas->CountMaps() << std::endl;
+}
+
+// Get all KeyFrames from all maps
+map<long unsigned int, KeyFrame*> allKFs = pAtlas->GetAtlasKeyframes();
+std::cout << "Total KeyFrames in Atlas: " 
+          << pAtlas->GetNumLivedKF() << std::endl;
+```
+
+## Map Creation Strategy
+
+The Atlas creates new maps in these scenarios:
+
+1. **Initial startup** - First map is created during Atlas construction
+2. **Tracking failure** - When tracking cannot be recovered and relocalization fails
+3. **Map merging** - When loop closure is detected between different maps, they can be merged
+
+<Info>
+The multi-map architecture makes ORB-SLAM3 more robust than single-map systems. If tracking is lost, a new map is created instead of failing completely. Maps can later be merged when loops are detected.
+</Info>
+
+## Thread Safety Considerations
+
+The Atlas uses a single mutex for thread safety:
+- All map operations should be protected
+- Camera additions are thread-safe
+- Current map pointer access is protected

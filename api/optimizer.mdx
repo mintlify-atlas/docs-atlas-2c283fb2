@@ -1,0 +1,413 @@
+---
+title: Optimizer
+description: Graph optimization and bundle adjustment using g2o framework
+---
+
+## Overview
+
+The `Optimizer` class provides various optimization methods for pose estimation and bundle adjustment in ORB-SLAM3. It uses the g2o (General Graph Optimization) framework with Levenberg-Marquardt and Gauss-Newton solvers.
+
+**Header:** `include/Optimizer.h`
+
+## Bundle Adjustment
+
+### BundleAdjustment
+
+```cpp
+void static BundleAdjustment(const std::vector<KeyFrame*> &vpKF,
+                             const std::vector<MapPoint*> &vpMP,
+                             int nIterations = 5,
+                             bool *pbStopFlag = NULL,
+                             const unsigned long nLoopKF = 0,
+                             const bool bRobust = true)
+```
+
+Performs bundle adjustment on a set of keyframes and map points.
+
+**Parameters:**
+- `vpKF` - Vector of keyframes to optimize
+- `vpMP` - Vector of map points to optimize
+- `nIterations` - Number of optimization iterations (default: 5)
+- `pbStopFlag` - Optional flag to stop optimization early
+- `nLoopKF` - Loop closure keyframe ID (default: 0)
+- `bRobust` - Whether to use robust kernel (default: true)
+
+**Details:**
+- Optimizes camera poses and 3D point positions jointly
+- Uses robust Huber kernel to handle outliers
+- Can be interrupted via stop flag
+
+### GlobalBundleAdjustemnt
+
+```cpp
+void static GlobalBundleAdjustemnt(Map* pMap,
+                                   int nIterations = 5,
+                                   bool *pbStopFlag = NULL,
+                                   const unsigned long nLoopKF = 0,
+                                   const bool bRobust = true)
+```
+
+Performs global bundle adjustment on the entire map.
+
+**Parameters:**
+- `pMap` - Map containing all keyframes and map points
+- `nIterations` - Number of optimization iterations (default: 5)
+- `pbStopFlag` - Optional flag to stop optimization early
+- `nLoopKF` - Loop closure keyframe ID (default: 0)
+- `bRobust` - Whether to use robust kernel (default: true)
+
+**Used in:** Loop closing, map merging
+
+### LocalBundleAdjustment
+
+```cpp
+void static LocalBundleAdjustment(KeyFrame* pKF,
+                                  bool *pbStopFlag,
+                                  Map *pMap,
+                                  int& num_fixedKF,
+                                  int& num_OptKF,
+                                  int& num_MPs,
+                                  int& num_edges)
+```
+
+Performs local bundle adjustment around a keyframe.
+
+**Parameters:**
+- `pKF` - Central keyframe for local optimization
+- `pbStopFlag` - Optional flag to stop optimization early
+- `pMap` - Current map
+- `num_fixedKF` - Output: number of fixed keyframes
+- `num_OptKF` - Output: number of optimized keyframes
+- `num_MPs` - Output: number of map points
+- `num_edges` - Output: number of edges in graph
+
+**Details:**
+- Optimizes local window of keyframes
+- Fixes distant keyframes as constraints
+- Runs in local mapping thread
+- More efficient than global BA
+
+## Pose Optimization
+
+### PoseOptimization
+
+```cpp
+int static PoseOptimization(Frame* pFrame)
+```
+
+Optimizes the pose of a single frame.
+
+**Parameters:**
+- `pFrame` - Frame to optimize
+
+**Returns:** Number of inlier observations
+
+**Details:**
+- Fixes 3D map points
+- Optimizes only the 6-DOF camera pose
+- Uses reprojection error
+- Fast optimization for tracking
+
+### PoseInertialOptimizationLastKeyFrame
+
+```cpp
+int static PoseInertialOptimizationLastKeyFrame(Frame* pFrame,
+                                                bool bRecInit = false)
+```
+
+Optimizes frame pose with inertial constraints from last keyframe.
+
+**Parameters:**
+- `pFrame` - Frame to optimize
+- `bRecInit` - Whether recovering from initialization (default: false)
+
+**Returns:** Number of inlier observations
+
+**Used in:** Visual-inertial tracking
+
+### PoseInertialOptimizationLastFrame
+
+```cpp
+int static PoseInertialOptimizationLastFrame(Frame *pFrame,
+                                             bool bRecInit = false)
+```
+
+Optimizes frame pose with inertial constraints from last frame.
+
+**Parameters:**
+- `pFrame` - Frame to optimize
+- `bRecInit` - Whether recovering from initialization (default: false)
+
+**Returns:** Number of inlier observations
+
+**Used in:** Visual-inertial tracking
+
+## Essential Graph Optimization
+
+### OptimizeEssentialGraph
+
+```cpp
+void static OptimizeEssentialGraph(Map* pMap,
+                                   KeyFrame* pLoopKF,
+                                   KeyFrame* pCurKF,
+                                   const LoopClosing::KeyFrameAndPose &NonCorrectedSim3,
+                                   const LoopClosing::KeyFrameAndPose &CorrectedSim3,
+                                   const map<KeyFrame*, set<KeyFrame*>> &LoopConnections,
+                                   const bool &bFixScale)
+```
+
+Optimizes the essential graph after loop closure.
+
+**Parameters:**
+- `pMap` - Current map
+- `pLoopKF` - Loop closure keyframe
+- `pCurKF` - Current keyframe
+- `NonCorrectedSim3` - Sim3 poses before correction
+- `CorrectedSim3` - Sim3 poses after correction
+- `LoopConnections` - Loop closure connections
+- `bFixScale` - Whether to fix scale (true for stereo/RGB-D, false for mono)
+
+**Details:**
+- Uses Sim3 (7-DOF) for monocular
+- Uses SE3 (6-DOF) for stereo/RGB-D
+- Distributes loop closure error across covisibility graph
+
+### OptimizeEssentialGraph4DoF
+
+```cpp
+void static OptimizeEssentialGraph4DoF(Map* pMap,
+                                       KeyFrame* pLoopKF,
+                                       KeyFrame* pCurKF,
+                                       const LoopClosing::KeyFrameAndPose &NonCorrectedSim3,
+                                       const LoopClosing::KeyFrameAndPose &CorrectedSim3,
+                                       const map<KeyFrame*, set<KeyFrame*>> &LoopConnections)
+```
+
+Optimizes essential graph with 4-DOF constraint for inertial systems.
+
+**Parameters:**
+- Same as `OptimizeEssentialGraph` but without `bFixScale`
+
+**Used in:** Inertial loop closing (fixes gravity direction)
+
+## Sim3 Optimization
+
+### OptimizeSim3
+
+```cpp
+static int OptimizeSim3(KeyFrame* pKF1,
+                        KeyFrame* pKF2,
+                        std::vector<MapPoint*> &vpMatches1,
+                        g2o::Sim3 &g2oS12,
+                        const float th2,
+                        const bool bFixScale,
+                        Eigen::Matrix<double,7,7> &mAcumHessian,
+                        const bool bAllPoints = false)
+```
+
+Optimizes Sim3 transformation between two keyframes.
+
+**Parameters:**
+- `pKF1` - First keyframe
+- `pKF2` - Second keyframe
+- `vpMatches1` - Matched map points from KF1
+- `g2oS12` - Input/output Sim3 transformation
+- `th2` - Chi-squared threshold for outlier rejection
+- `bFixScale` - Whether to fix scale (true for stereo/RGB-D)
+- `mAcumHessian` - Output accumulated Hessian matrix
+- `bAllPoints` - Whether to use all points (default: false)
+
+**Returns:** Number of inliers
+
+**Used in:** Loop detection, place recognition
+
+## Inertial Optimization
+
+### FullInertialBA
+
+```cpp
+void static FullInertialBA(Map *pMap,
+                           int its,
+                           const bool bFixLocal = false,
+                           const unsigned long nLoopKF = 0,
+                           bool *pbStopFlag = NULL,
+                           bool bInit = false,
+                           float priorG = 1e2,
+                           float priorA = 1e6,
+                           Eigen::VectorXd *vSingVal = NULL,
+                           bool *bHess = NULL)
+```
+
+Performs full inertial bundle adjustment.
+
+**Parameters:**
+- `pMap` - Map to optimize
+- `its` - Number of iterations
+- `bFixLocal` - Whether to fix local keyframes (default: false)
+- `nLoopKF` - Loop closure keyframe ID (default: 0)
+- `pbStopFlag` - Optional stop flag
+- `bInit` - Whether in initialization phase (default: false)
+- `priorG` - Prior weight for gravity (default: 100)
+- `priorA` - Prior weight for acceleration (default: 1e6)
+- `vSingVal` - Output singular values
+- `bHess` - Output Hessian flag
+
+**Details:**
+- Optimizes poses, velocities, and IMU biases
+- Includes IMU preintegration constraints
+- Uses prior constraints on gravity and biases
+
+### LocalInertialBA
+
+```cpp
+void static LocalInertialBA(KeyFrame* pKF,
+                            bool *pbStopFlag,
+                            Map *pMap,
+                            int& num_fixedKF,
+                            int& num_OptKF,
+                            int& num_MPs,
+                            int& num_edges,
+                            bool bLarge = false,
+                            bool bRecInit = false)
+```
+
+Performs local inertial bundle adjustment.
+
+**Parameters:**
+- `pKF` - Central keyframe
+- `pbStopFlag` - Optional stop flag
+- `pMap` - Current map
+- `num_fixedKF` - Output: number of fixed keyframes
+- `num_OptKF` - Output: number of optimized keyframes
+- `num_MPs` - Output: number of map points
+- `num_edges` - Output: number of edges
+- `bLarge` - Whether using large window (default: false)
+- `bRecInit` - Whether recovering from initialization (default: false)
+
+### InertialOptimization
+
+```cpp
+void static InertialOptimization(Map *pMap,
+                                 Eigen::Matrix3d &Rwg,
+                                 double &scale,
+                                 Eigen::Vector3d &bg,
+                                 Eigen::Vector3d &ba,
+                                 bool bMono,
+                                 Eigen::MatrixXd &covInertial,
+                                 bool bFixedVel = false,
+                                 bool bGauss = false,
+                                 float priorG = 1e2,
+                                 float priorA = 1e6)
+```
+
+Optimizes inertial parameters on pose graph.
+
+**Parameters:**
+- `pMap` - Map to optimize
+- `Rwg` - Output: rotation from world to gravity-aligned frame
+- `scale` - Output: scale factor (monocular)
+- `bg` - Output: gyroscope bias
+- `ba` - Output: accelerometer bias
+- `bMono` - Whether monocular mode
+- `covInertial` - Output: inertial covariance
+- `bFixedVel` - Whether to fix velocities (default: false)
+- `bGauss` - Whether to use Gaussian constraints (default: false)
+- `priorG` - Prior weight for gravity (default: 100)
+- `priorA` - Prior weight for acceleration (default: 1e6)
+
+## Utility Functions
+
+### Marginalize
+
+```cpp
+static Eigen::MatrixXd Marginalize(const Eigen::MatrixXd &H,
+                                   const int &start,
+                                   const int &end)
+```
+
+Marginalizes a block of the Hessian matrix using Schur complement.
+
+**Parameters:**
+- `H` - Input Hessian matrix
+- `start` - Start index of block to marginalize
+- `end` - End index of block to marginalize
+
+**Returns:** Marginalized Hessian matrix
+
+**Details:**
+- Used for removing variables from optimization
+- Preserves information through Schur complement
+- Marginalized elements filled with zeros
+
+## g2o Integration
+
+The Optimizer class uses g2o framework components:
+
+- **Sparse Block Matrix** - Efficient sparse matrix storage
+- **Block Solver** - Specialized solver for SLAM problems
+- **Levenberg-Marquardt** - Non-linear optimization algorithm
+- **Gauss-Newton** - Alternative optimization algorithm
+- **Eigen Solver** - Linear system solver
+- **Robust Kernels** - Huber kernel for outlier rejection
+
+## Usage Example
+
+```cpp
+// Optimize single frame pose
+Frame currentFrame;
+int nInliers = Optimizer::PoseOptimization(&currentFrame);
+
+// Local bundle adjustment
+KeyFrame* pKF = mpLocalMapper->GetCurrentKeyFrame();
+int num_fixed, num_opt, num_mps, num_edges;
+Optimizer::LocalBundleAdjustment(pKF, &mbStopFlag, mpMap,
+                                  num_fixed, num_opt, num_mps, num_edges);
+
+// Global bundle adjustment after loop closure
+Optimizer::GlobalBundleAdjustemnt(mpMap, 10, &mbStopFlag, nLoopKF, true);
+
+// Optimize Sim3 for loop detection
+g2o::Sim3 g2oS12;
+std::vector<MapPoint*> vpMatches;
+Eigen::Matrix<double,7,7> Hessian;
+int nInliers = Optimizer::OptimizeSim3(pKF1, pKF2, vpMatches,
+                                       g2oS12, 7.815, false, Hessian);
+```
+
+## Optimization Types
+
+### Pose-Only
+
+- Optimizes camera pose only
+- Fixes 3D map points
+- Fast optimization for tracking
+- Runs every frame
+
+### Local Bundle Adjustment
+
+- Optimizes local window of keyframes
+- Optimizes observed map points
+- Fixes distant keyframes
+- Runs in local mapping thread
+
+### Global Bundle Adjustment
+
+- Optimizes entire map
+- All keyframes and map points
+- Computationally expensive
+- Runs after loop closure
+
+### Essential Graph
+
+- Optimizes only keyframe poses
+- Uses covisibility graph edges
+- Faster than full BA
+- Distributes loop closure error
+
+## See Also
+
+- [Tracking](/api/tracking) - Uses pose optimization
+- [LocalMapping](/api/local-mapping) - Uses local BA
+- [LoopClosing](/api/loop-closing) - Uses global BA and essential graph
+- [Frame](/api/frame) - Frame pose optimization
+- [KeyFrame](/api/keyframe) - Keyframe in bundle adjustment

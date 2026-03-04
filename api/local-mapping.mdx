@@ -1,0 +1,375 @@
+---
+title: 'LocalMapping'
+description: 'Complete API reference for the ORB_SLAM3::LocalMapping class'
+---
+
+## Overview
+
+The `LocalMapping` class manages the local map and performs local bundle adjustment. It runs in a separate thread, processing new keyframes from the Tracking thread, creating new map points, and optimizing the local map structure.
+
+## Constructor
+
+```cpp
+LocalMapping(System* pSys, 
+             Atlas* pAtlas, 
+             const float bMonocular, 
+             bool bInertial, 
+             const string &_strSeqName = std::string())
+```
+
+### Parameters
+
+- `pSys`: Pointer to the System object
+- `pAtlas`: Pointer to the Atlas (multi-map manager)
+- `bMonocular`: True if using monocular sensor
+- `bInertial`: True if using inertial measurements (IMU)
+- `_strSeqName`: Optional sequence name for debugging
+
+## Thread Control Methods
+
+### Run
+
+```cpp
+void Run()
+```
+
+Main function that runs in the local mapping thread. Continuously processes keyframes from the queue.
+
+### RequestStop
+
+```cpp
+void RequestStop()
+```
+
+Requests the local mapping thread to stop processing.
+
+### Stop
+
+```cpp
+bool Stop()
+```
+
+Attempts to stop the local mapping thread.
+
+**Returns:** True if successfully stopped
+
+### Release
+
+```cpp
+void Release()
+```
+
+Releases the stop condition and allows the thread to continue.
+
+### isStopped
+
+```cpp
+bool isStopped()
+```
+
+**Returns:** True if the thread is currently stopped
+
+### stopRequested
+
+```cpp
+bool stopRequested()
+```
+
+**Returns:** True if a stop has been requested
+
+### RequestFinish
+
+```cpp
+void RequestFinish()
+```
+
+Requests the thread to finish execution and terminate.
+
+### isFinished
+
+```cpp
+bool isFinished()
+```
+
+**Returns:** True if the thread has finished execution
+
+### SetNotStop
+
+```cpp
+bool SetNotStop(bool flag)
+```
+
+Sets a flag to prevent stopping during critical operations.
+
+**Parameters:**
+- `flag`: If true, prevents stopping
+
+**Returns:** Previous state of the flag
+
+## Keyframe Management
+
+### InsertKeyFrame
+
+```cpp
+void InsertKeyFrame(KeyFrame* pKF)
+```
+
+Inserts a new keyframe into the processing queue.
+
+**Parameters:**
+- `pKF`: Pointer to the keyframe to be processed
+
+### EmptyQueue
+
+```cpp
+void EmptyQueue()
+```
+
+Clears all keyframes from the processing queue.
+
+### KeyframesInQueue
+
+```cpp
+int KeyframesInQueue()
+```
+
+**Returns:** Number of keyframes waiting in the queue
+
+### AcceptKeyFrames
+
+```cpp
+bool AcceptKeyFrames()
+```
+
+**Returns:** True if the thread is currently accepting new keyframes
+
+### SetAcceptKeyFrames
+
+```cpp
+void SetAcceptKeyFrames(bool flag)
+```
+
+Enables or disables acceptance of new keyframes.
+
+**Parameters:**
+- `flag`: True to accept keyframes, false to reject
+
+## Thread Communication
+
+### SetLoopCloser
+
+```cpp
+void SetLoopCloser(LoopClosing* pLoopCloser)
+```
+
+Sets the pointer to the Loop Closing thread.
+
+**Parameters:**
+- `pLoopCloser`: Pointer to LoopClosing object
+
+### SetTracker
+
+```cpp
+void SetTracker(Tracking* pTracker)
+```
+
+Sets the pointer to the Tracking thread.
+
+**Parameters:**
+- `pTracker`: Pointer to Tracking object
+
+## State Management
+
+### RequestReset
+
+```cpp
+void RequestReset()
+```
+
+Requests a reset of the local mapping thread.
+
+### RequestResetActiveMap
+
+```cpp
+void RequestResetActiveMap(Map* pMap)
+```
+
+Requests a reset of the specified map.
+
+**Parameters:**
+- `pMap`: Pointer to the map to reset
+
+### InterruptBA
+
+```cpp
+void InterruptBA()
+```
+
+Interrupts the currently running bundle adjustment.
+
+## Information Retrieval
+
+### IsInitializing
+
+```cpp
+bool IsInitializing()
+```
+
+**Returns:** True if IMU initialization is in progress
+
+### GetCurrKFTime
+
+```cpp
+double GetCurrKFTime()
+```
+
+**Returns:** Timestamp of the current keyframe being processed
+
+### GetCurrKF
+
+```cpp
+KeyFrame* GetCurrKF()
+```
+
+**Returns:** Pointer to the current keyframe being processed
+
+## IMU Initialization (Inertial Mode)
+
+### Public IMU Variables
+
+These variables are accessible for IMU initialization and scale estimation:
+
+```cpp
+Eigen::MatrixXd mcovInertial;  // Inertial covariance matrix
+Eigen::Matrix3d mRwg;          // Rotation from world to gravity
+Eigen::Vector3d mbg;           // Gyroscope bias
+Eigen::Vector3d mba;           // Accelerometer bias
+double mScale;                  // Scale factor
+double mInitTime;              // Initialization time
+double mCostTime;              // Optimization cost time
+```
+
+### Initialization Statistics
+
+```cpp
+unsigned int mInitSect;        // Initialization section
+unsigned int mIdxInit;         // Initialization index
+unsigned int mnKFs;            // Number of keyframes
+double mFirstTs;               // First timestamp
+int mnMatchesInliers;          // Number of inlier matches
+int mInitFr;                   // Initial frame ID
+int mIdxIteration;             // Iteration index
+string strSequence;            // Sequence name
+```
+
+### IMU Flags
+
+```cpp
+bool mbNotBA1;     // Skip first BA
+bool mbNotBA2;     // Skip second BA
+bool mbBadImu;     // IMU initialization failed
+bool mbWriteStats; // Write statistics to file
+```
+
+## Point Filtering
+
+### Far Points Configuration
+
+```cpp
+bool mbFarPoints;      // Enable far point filtering
+float mThFarPoints;    // Threshold for far points (in meters)
+```
+
+Controls whether distant map points (potential clouds/outliers) are filtered out.
+
+## Usage Example
+
+```cpp
+// Local Mapping is typically created by the System class
+// Example initialization:
+
+ORB_SLAM3::LocalMapping localMapper(pSystem, pAtlas, 
+                                    true,  // monocular
+                                    false, // no IMU
+                                    "sequence_01");
+
+localMapper.SetLoopCloser(pLoopCloser);
+localMapper.SetTracker(pTracker);
+
+// Start the thread
+std::thread localMappingThread(&ORB_SLAM3::LocalMapping::Run, &localMapper);
+
+// Insert a keyframe from tracking
+localMapper.InsertKeyFrame(pNewKeyFrame);
+
+// Check queue status
+int queueSize = localMapper.KeyframesInQueue();
+std::cout << "Keyframes in queue: " << queueSize << std::endl;
+
+// Stop for visualization
+localMapper.RequestStop();
+while (!localMapper.isStopped()) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(3));
+}
+
+// Resume processing
+localMapper.Release();
+
+// Cleanup
+localMapper.RequestFinish();
+localMappingThread.join();
+```
+
+## Local Mapping Pipeline
+
+The local mapping thread follows this processing pipeline:
+
+1. **Check for New Keyframes**: Wait for keyframes from the tracking thread
+2. **Process New Keyframe**:
+   - Compute Bag-of-Words representation
+   - Update connections with other keyframes
+   - Insert keyframe into map
+3. **Map Point Culling**: Remove low-quality map points
+4. **Create New Map Points**: Triangulate new points from keyframe connections
+5. **Search in Neighbors**: Fuse duplicate map points
+6. **Local Bundle Adjustment**: Optimize local map (keyframes + points)
+7. **Keyframe Culling**: Remove redundant keyframes
+
+## Thread Synchronization
+
+The LocalMapping class uses several mutexes for thread-safe operation:
+
+- `mMutexNewKFs`: Protects the keyframe queue
+- `mMutexStop`: Protects stop-related flags
+- `mMutexFinish`: Protects finish-related flags
+- `mMutexAccept`: Protects keyframe acceptance flag
+- `mMutexReset`: Protects reset requests
+- `mMutexImuInit`: Protects IMU initialization data
+
+## Bundle Adjustment Control
+
+Local Bundle Adjustment (LBA) optimizes:
+- **Keyframes**: Local keyframes (poses)
+- **Map Points**: Points visible in local keyframes
+- **Fixed Keyframes**: Covisible keyframes kept fixed
+
+The optimization can be interrupted using `InterruptBA()` when:
+- A new keyframe arrives
+- Loop closure is detected
+- System reset is requested
+
+## IMU Integration
+
+When `bInertial` is true, the local mapping performs:
+
+1. **IMU Initialization**: Estimates gravity direction, scale, and IMU biases
+2. **Scale Refinement**: Refines the scale estimate over multiple keyframes
+3. **Inertial BA**: Performs bundle adjustment with IMU constraints
+
+IMU initialization requires a minimum number of keyframes and sufficient motion.
+
+## Related Classes
+
+- [System](/api/system) - Main SLAM system interface
+- [Tracking](/api/tracking) - Provides keyframes to local mapping
+- [LoopClosing](/api/loop-closing) - Performs global optimization after loop detection

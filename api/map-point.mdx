@@ -1,0 +1,529 @@
+---
+title: "MapPoint"
+description: "3D point representation with observations, descriptor, and geometric properties"
+---
+
+## Overview
+
+The `MapPoint` class represents a 3D point in the world coordinate system. Each MapPoint stores its 3D position, observations from multiple KeyFrames, a distinctive descriptor, and geometric properties for matching and culling. MapPoints form the 3D structure of the map and are matched against image features during tracking.
+
+```cpp
+namespace ORB_SLAM3 {
+    class MapPoint;
+}
+```
+
+Defined in: `MapPoint.h:44`
+
+## Key Features
+
+- 3D world position representation
+- Multiple KeyFrame observations tracking
+- Distinctive descriptor computation from observations
+- Viewing direction and distance constraints
+- Outlier detection and bad flag management
+- Reference KeyFrame association
+- Scale-invariant distance computation
+
+## Constructors
+
+### From KeyFrame
+
+```cpp
+MapPoint(const Eigen::Vector3f &Pos, KeyFrame* pRefKF, Map* pMap);
+```
+
+Creates a MapPoint from a 3D position and reference KeyFrame.
+
+**Parameters:**
+- `Pos` - 3D position in world coordinates
+- `pRefKF` - Reference KeyFrame
+- `pMap` - Map to which this MapPoint belongs
+
+### From Inverse Depth
+
+```cpp
+MapPoint(const double invDepth, cv::Point2f uv_init, KeyFrame* pRefKF, 
+         KeyFrame* pHostKF, Map* pMap);
+```
+
+Creates a MapPoint from inverse depth parameterization (for monocular initialization).
+
+### From Frame
+
+```cpp
+MapPoint(const Eigen::Vector3f &Pos, Map* pMap, Frame* pFrame, const int &idxF);
+```
+
+Creates a MapPoint from a Frame observation.
+
+## Position
+
+### SetWorldPos
+
+```cpp
+void SetWorldPos(const Eigen::Vector3f &Pos);
+```
+
+Sets the 3D world position of the MapPoint.
+
+### GetWorldPos
+
+```cpp
+Eigen::Vector3f GetWorldPos();
+```
+
+Returns the 3D world position with thread safety.
+
+## Normal Vector
+
+### GetNormal
+
+```cpp
+Eigen::Vector3f GetNormal();
+```
+
+Returns the mean viewing direction (average of all observation directions).
+
+### SetNormalVector
+
+```cpp
+void SetNormalVector(const Eigen::Vector3f& normal);
+```
+
+Sets the normal vector directly.
+
+### UpdateNormalAndDepth
+
+```cpp
+void UpdateNormalAndDepth();
+```
+
+Recomputes the mean viewing direction and depth range from all observations.
+
+<Note>
+The normal vector represents the mean viewing direction from all KeyFrames that observe this MapPoint. It's used for view-dependent matching.
+</Note>
+
+## Reference KeyFrame
+
+### GetReferenceKeyFrame
+
+```cpp
+KeyFrame* GetReferenceKeyFrame();
+```
+
+Returns the reference KeyFrame (typically the first KeyFrame that observed this MapPoint).
+
+## Observations
+
+### AddObservation
+
+```cpp
+void AddObservation(KeyFrame* pKF, int idx);
+```
+
+Adds an observation of this MapPoint from a KeyFrame.
+
+**Parameters:**
+- `pKF` - KeyFrame that observes this MapPoint
+- `idx` - Index of the keypoint in the KeyFrame
+
+### EraseObservation
+
+```cpp
+void EraseObservation(KeyFrame* pKF);
+```
+
+Removes an observation from a KeyFrame.
+
+### GetObservations
+
+```cpp
+std::map<KeyFrame*, std::tuple<int,int>> GetObservations();
+```
+
+Returns all observations as a map from KeyFrame to keypoint indices.
+
+### Observations
+
+```cpp
+int Observations();
+```
+
+Returns the number of KeyFrames observing this MapPoint.
+
+### IsInKeyFrame
+
+```cpp
+bool IsInKeyFrame(KeyFrame* pKF);
+```
+
+Returns true if this MapPoint is observed by the specified KeyFrame.
+
+### GetIndexInKeyFrame
+
+```cpp
+std::tuple<int,int> GetIndexInKeyFrame(KeyFrame* pKF);
+```
+
+Returns the keypoint index (or indices for stereo) in the specified KeyFrame.
+
+### PrintObservations
+
+```cpp
+void PrintObservations();
+```
+
+Prints all observations for debugging.
+
+## Descriptor
+
+### ComputeDistinctiveDescriptors
+
+```cpp
+void ComputeDistinctiveDescriptors();
+```
+
+Computes the best descriptor from all observations. Selects the descriptor with minimum median Hamming distance to all others.
+
+### GetDescriptor
+
+```cpp
+cv::Mat GetDescriptor();
+```
+
+Returns the distinctive descriptor used for matching.
+
+<Info>
+The distinctive descriptor is chosen from all observed descriptors as the one most representative of the MapPoint's appearance from different viewpoints.
+</Info>
+
+## Bad Flag
+
+### SetBadFlag
+
+```cpp
+void SetBadFlag();
+```
+
+Marks the MapPoint as bad and removes it from all KeyFrame observations and the map.
+
+### isBad
+
+```cpp
+bool isBad();
+```
+
+Returns true if the MapPoint is marked as bad.
+
+### Replace
+
+```cpp
+void Replace(MapPoint* pMP);
+```
+
+Replaces this MapPoint with another one in all observations.
+
+### GetReplaced
+
+```cpp
+MapPoint* GetReplaced();
+```
+
+Returns the MapPoint that replaced this one.
+
+## Visibility and Found Ratio
+
+### IncreaseVisible
+
+```cpp
+void IncreaseVisible(int n=1);
+```
+
+Increments the counter of times this MapPoint was visible in a frame.
+
+### IncreaseFound
+
+```cpp
+void IncreaseFound(int n=1);
+```
+
+Increments the counter of times this MapPoint was matched in a frame.
+
+### GetFoundRatio
+
+```cpp
+float GetFoundRatio();
+```
+
+Returns the ratio of found/visible, indicating matching reliability.
+
+### GetFound
+
+```cpp
+int GetFound();
+```
+
+Returns the number of times the MapPoint was successfully matched.
+
+<Note>
+MapPoints with low found ratio are considered unreliable and may be culled during local mapping.
+</Note>
+
+## Distance Invariance
+
+### GetMinDistanceInvariance
+
+```cpp
+float GetMinDistanceInvariance();
+```
+
+Returns the minimum distance at which the MapPoint should be visible based on scale.
+
+### GetMaxDistanceInvariance
+
+```cpp
+float GetMaxDistanceInvariance();
+```
+
+Returns the maximum distance at which the MapPoint should be visible based on scale.
+
+### PredictScale (KeyFrame)
+
+```cpp
+int PredictScale(const float &currentDist, KeyFrame* pKF);
+```
+
+Predicts the scale level at which the MapPoint should be detected given the distance from a KeyFrame.
+
+### PredictScale (Frame)
+
+```cpp
+int PredictScale(const float &currentDist, Frame* pF);
+```
+
+Predicts the scale level at which the MapPoint should be detected given the distance from a Frame.
+
+## Map Association
+
+### GetMap
+
+```cpp
+Map* GetMap();
+```
+
+Returns the map containing this MapPoint.
+
+### UpdateMap
+
+```cpp
+void UpdateMap(Map* pMap);
+```
+
+Updates the map pointer (used during map merging).
+
+## Data Members
+
+### Identification
+
+```cpp
+long unsigned int mnId;          // Unique MapPoint ID
+static long unsigned int nNextId; // Next ID to assign
+long int mnFirstKFid;             // ID of first observing KeyFrame
+long int mnFirstFrame;            // ID of first observing Frame
+unsigned int mnOriginMapId;       // Origin map ID
+```
+
+### Geometric Data
+
+```cpp
+// 3D position in world coordinates
+Eigen::Vector3f mWorldPos;
+
+// Mean viewing direction
+Eigen::Vector3f mNormalVector;
+
+// Scale invariance distances
+float mfMinDistance;
+float mfMaxDistance;
+```
+
+### Observations
+
+```cpp
+// KeyFrames observing the point and keypoint indices
+std::map<KeyFrame*, std::tuple<int,int>> mObservations;
+
+// Number of observations
+int nObs;
+
+// Reference KeyFrame
+KeyFrame* mpRefKF;
+```
+
+### Descriptor
+
+```cpp
+// Best descriptor for fast matching
+cv::Mat mDescriptor;
+```
+
+### Tracking Counters
+
+```cpp
+int mnVisible;  // Times visible
+int mnFound;    // Times found/matched
+```
+
+### Status Flags
+
+```cpp
+bool mbBad;              // Bad flag
+MapPoint* mpReplaced;    // Replacement MapPoint
+```
+
+### Map Association
+
+```cpp
+Map* mpMap;
+```
+
+### Tracking Variables
+
+These variables are used during tracking and are not thread-safe:
+
+```cpp
+// Projected coordinates in current frame
+float mTrackProjX, mTrackProjY;
+float mTrackProjXR, mTrackProjYR;  // Right image (stereo)
+
+// Depth in current frame
+float mTrackDepth, mTrackDepthR;
+
+// Visibility in current frame
+bool mbTrackInView, mbTrackInViewR;
+
+// Predicted scale level
+int mnTrackScaleLevel, mnTrackScaleLevelR;
+
+// Viewing angle cosine
+float mTrackViewCos, mTrackViewCosR;
+
+// Last frame seen
+long unsigned int mnLastFrameSeen;
+long unsigned int mnTrackReferenceForFrame;
+```
+
+### Optimization Variables
+
+```cpp
+// Local mapping
+long unsigned int mnBALocalForKF;
+long unsigned int mnFuseCandidateForKF;
+
+// Loop closing
+long unsigned int mnLoopPointForKF;
+long unsigned int mnCorrectedByKF;
+long unsigned int mnCorrectedReference;
+Eigen::Vector3f mPosGBA;           // Position after global BA
+long unsigned int mnBAGlobalForKF;
+
+// Merging
+long unsigned int mnBALocalForMerge;
+Eigen::Vector3f mPosMerge;
+Eigen::Vector3f mNormalVectorMerge;
+```
+
+### Inverse Depth Optimization
+
+```cpp
+double mInvDepth;      // Inverse depth
+double mInitU, mInitV; // Initial pixel coordinates  
+KeyFrame* mpHostKF;    // Host KeyFrame
+```
+
+## Thread Safety
+
+```cpp
+std::mutex mMutexPos;       // Position access
+std::mutex mMutexFeatures;  // Features and observations
+std::mutex mMutexMap;       // Map pointer
+static std::mutex mGlobalMutex; // Global operations
+```
+
+## Serialization Support
+
+```cpp
+// Backup for serialization
+std::map<long unsigned int, int> mBackupObservationsId1;
+std::map<long unsigned int, int> mBackupObservationsId2;
+long unsigned int mBackupRefKFId;
+long long int mBackupReplacedId;
+```
+
+### PreSave
+
+```cpp
+void PreSave(set<KeyFrame*>& spKF, set<MapPoint*>& spMP);
+```
+
+Prepares the MapPoint for serialization.
+
+### PostLoad
+
+```cpp
+void PostLoad(map<long unsigned int, KeyFrame*>& mpKFid, 
+              map<long unsigned int, MapPoint*>& mpMPid);
+```
+
+Restores the MapPoint after deserialization.
+
+## Usage Example
+
+```cpp
+// Create MapPoint from triangulation
+Eigen::Vector3f worldPos = Triangulate(kp1, kp2, Tcw1, Tcw2);
+MapPoint* pMP = new MapPoint(worldPos, pRefKF, pMap);
+
+// Add observations
+pMP->AddObservation(pKF1, idx1);
+pMP->AddObservation(pKF2, idx2);
+
+// Compute distinctive descriptor
+pMP->ComputeDistinctiveDescriptors();
+
+// Update geometric properties
+pMP->UpdateNormalAndDepth();
+
+// Check quality
+if (pMP->Observations() < 2) {
+    pMP->SetBadFlag();
+    return;
+}
+
+// Get info
+Eigen::Vector3f pos = pMP->GetWorldPos();
+Eigen::Vector3f normal = pMP->GetNormal();
+float foundRatio = pMP->GetFoundRatio();
+
+std::cout << "MapPoint observed by " << pMP->Observations() 
+          << " KeyFrames, found ratio: " << foundRatio << std::endl;
+
+// Predict scale for matching
+float dist = (pos - cameraPos).norm();
+int predictedLevel = pMP->PredictScale(dist, pKF);
+```
+
+## MapPoint Culling
+
+MapPoints are culled during local mapping if:
+
+1. **Low observation count** - Observed by fewer than 2 KeyFrames after creation
+2. **Low found ratio** - Found ratio < 0.25 after sufficient frames
+3. **Bad flag set** - Explicitly marked as outlier or inconsistent
+4. **Replaced** - Merged with another MapPoint during optimization
+
+<Info>
+The distinctive descriptor and normal vector enable robust matching across different viewpoints and scales, making MapPoints viewpoint-invariant.
+</Info>

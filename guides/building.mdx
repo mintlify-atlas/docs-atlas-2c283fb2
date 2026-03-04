@@ -1,0 +1,336 @@
+---
+title: Building ORB-SLAM3
+description: Complete guide to building ORB-SLAM3 from source, including third-party dependencies and troubleshooting
+---
+
+This guide walks you through the complete process of building ORB-SLAM3 from source, including all required third-party libraries.
+
+## Prerequisites
+
+Before building ORB-SLAM3, ensure you have the following dependencies installed:
+
+### Required Dependencies
+
+- **C++11 or C++0x Compiler**: Required for thread and chrono functionalities
+- **CMake**: Version 2.8 or higher
+- **OpenCV**: Version 4.4 or higher (minimum 3.0)
+- **Eigen3**: Version 3.1.0 or higher
+- **Pangolin**: For visualization and user interface
+- **Boost**: Required for serialization (`-lboost_serialization`)
+- **OpenSSL**: Required for cryptographic functions (`-lcrypto`)
+
+### Optional Dependencies
+
+- **RealSense SDK 2.0**: For Intel RealSense camera support (D435i, T265)
+- **ROS**: For ROS node examples (tested with ROS Melodic on Ubuntu 18.04)
+- **Python 2.7**: Required for trajectory evaluation scripts
+
+<Tip>
+A powerful computer (e.g., i7 processor) will ensure real-time performance and provide more stable and accurate results.
+</Tip>
+
+## Build Process Overview
+
+The build process consists of three main stages:
+
+<Steps>
+  <Step title="Build Third-Party Libraries">
+    Build DBoW2, g2o, and Sophus libraries included in the Thirdparty folder
+  </Step>
+  
+  <Step title="Extract Vocabulary">
+    Uncompress the ORB vocabulary file needed for place recognition
+  </Step>
+  
+  <Step title="Build ORB-SLAM3">
+    Build the main ORB-SLAM3 library and example executables
+  </Step>
+</Steps>
+
+## Using the Build Script
+
+The easiest way to build ORB-SLAM3 is using the provided `build.sh` script:
+
+```bash
+cd ORB_SLAM3
+chmod +x build.sh
+./build.sh
+```
+
+This script automatically:
+- Builds all third-party libraries (DBoW2, g2o, Sophus)
+- Extracts the ORB vocabulary
+- Builds the ORB-SLAM3 library
+- Compiles all example executables
+
+### What Gets Built
+
+After successful compilation:
+
+- **Library**: `lib/libORB_SLAM3.so` - The main shared library
+- **Executables**: Various example programs in `Examples/` directories:
+  - `Examples/Monocular/` - Monocular camera examples
+  - `Examples/Stereo/` - Stereo camera examples
+  - `Examples/RGB-D/` - RGB-D camera examples
+  - `Examples/Monocular-Inertial/` - Monocular with IMU examples
+  - `Examples/Stereo-Inertial/` - Stereo with IMU examples
+  - `Examples/RGB-D-Inertial/` - RGB-D with IMU examples
+
+## Manual Build Process
+
+If you prefer to build step-by-step or need to customize the build:
+
+### Step 1: Build DBoW2
+
+```bash
+cd Thirdparty/DBoW2
+mkdir build
+cd build
+cmake .. -DCMAKE_BUILD_TYPE=Release
+make -j
+```
+
+### Step 2: Build g2o
+
+```bash
+cd ../../g2o
+mkdir build
+cd build
+cmake .. -DCMAKE_BUILD_TYPE=Release
+make -j
+```
+
+### Step 3: Build Sophus
+
+```bash
+cd ../../Sophus
+mkdir build
+cd build
+cmake .. -DCMAKE_BUILD_TYPE=Release
+make -j
+```
+
+### Step 4: Extract Vocabulary
+
+```bash
+cd ../../../Vocabulary
+tar -xf ORBvoc.txt.tar.gz
+```
+
+### Step 5: Build ORB-SLAM3
+
+```bash
+cd ..
+mkdir build
+cd build
+cmake .. -DCMAKE_BUILD_TYPE=Release
+make -j4
+```
+
+## CMake Configuration Options
+
+ORB-SLAM3 uses several CMake configuration options:
+
+### Build Type
+
+```bash
+cmake .. -DCMAKE_BUILD_TYPE=Release  # Optimized build (default)
+cmake .. -DCMAKE_BUILD_TYPE=Debug    # Debug symbols
+```
+
+### Compiler Flags
+
+The default Release build uses aggressive optimization:
+
+<CodeGroup>
+```cmake C Flags
+-Wall -O3 -march=native
+```
+
+```cmake C++ Flags
+-Wall -O3 -march=native
+```
+</CodeGroup>
+
+<Warning>
+The `-march=native` flag optimizes for your specific CPU architecture. If you need to distribute binaries, consider using `-march=x86-64` for broader compatibility.
+</Warning>
+
+### Optional Features
+
+The build system automatically detects optional dependencies:
+
+- **RealSense Support**: Automatically enabled if `librealsense2` is found
+- **C++11/C++0x**: Automatically detected and configured
+
+## Building for Specific Platforms
+
+### Ubuntu 16.04/18.04
+
+Install dependencies:
+
+```bash
+sudo apt-get update
+sudo apt-get install -y \
+  build-essential \
+  cmake \
+  git \
+  libgtk2.0-dev \
+  pkg-config \
+  libavcodec-dev \
+  libavformat-dev \
+  libswscale-dev \
+  libeigen3-dev \
+  libboost-serialization-dev \
+  libssl-dev
+```
+
+Install Pangolin:
+
+```bash
+git clone https://github.com/stevenlovegrove/Pangolin.git
+cd Pangolin
+mkdir build && cd build
+cmake ..
+make -j
+sudo make install
+```
+
+Install OpenCV 4.4:
+
+```bash
+# Download and build OpenCV 4.4
+wget -O opencv.zip https://github.com/opencv/opencv/archive/4.4.0.zip
+unzip opencv.zip
+cd opencv-4.4.0
+mkdir build && cd build
+cmake ..
+make -j8
+sudo make install
+```
+
+### macOS
+
+Install dependencies using Homebrew:
+
+```bash
+brew install cmake eigen opencv pangolin boost openssl
+```
+
+Then follow the standard build process.
+
+## Troubleshooting Common Build Errors
+
+<Accordion title="Error: OpenCV > 4.4 not found">
+  **Solution**: Install OpenCV 4.4 or higher. The build requires at least OpenCV 3.0, but 4.4+ is recommended.
+  
+  ```bash
+  # Check OpenCV version
+  pkg-config --modversion opencv4
+  
+  # If not found, install OpenCV
+  sudo apt-get install libopencv-dev
+  ```
+</Accordion>
+
+<Accordion title="Error: Eigen3 not found">
+  **Solution**: Install Eigen3 development files.
+  
+  ```bash
+  sudo apt-get install libeigen3-dev
+  ```
+  
+  Verify installation:
+  ```bash
+  pkg-config --modversion eigen3
+  ```
+</Accordion>
+
+<Accordion title="Error: Pangolin not found">
+  **Solution**: Build and install Pangolin from source.
+  
+  ```bash
+  # Install Pangolin dependencies
+  sudo apt-get install libgl1-mesa-dev libglew-dev
+  
+  # Clone and build Pangolin
+  git clone https://github.com/stevenlovegrove/Pangolin.git
+  cd Pangolin
+  mkdir build && cd build
+  cmake ..
+  make -j
+  sudo make install
+  ```
+</Accordion>
+
+<Accordion title="Error: undefined reference to boost::serialization">
+  **Solution**: Install Boost serialization library.
+  
+  ```bash
+  sudo apt-get install libboost-serialization-dev
+  ```
+</Accordion>
+
+<Accordion title="Error: The compiler has no C++11 support">
+  **Solution**: Update your compiler to GCC 4.8+ or Clang 3.3+.
+  
+  ```bash
+  # Ubuntu/Debian
+  sudo apt-get install build-essential
+  
+  # Check compiler version
+  g++ --version
+  ```
+</Accordion>
+
+<Accordion title="Build succeeds but vocabulary file missing">
+  **Solution**: Extract the vocabulary file manually.
+  
+  ```bash
+  cd Vocabulary
+  tar -xf ORBvoc.txt.tar.gz
+  ```
+  
+  This creates `ORBvoc.txt` which is required for running ORB-SLAM3.
+</Accordion>
+
+<Accordion title="Error: march=native not supported">
+  **Solution**: Edit `CMakeLists.txt` and change `-march=native` to `-march=x86-64`.
+  
+  ```cmake
+  set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -march=x86-64")
+  set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -march=x86-64")
+  ```
+</Accordion>
+
+## Performance Optimization
+
+### Time Profiling
+
+To enable execution time measurements, uncomment the following line in `include/Config.h`:
+
+```cpp
+#define REGISTER_TIMES
+```
+
+This will:
+- Display time statistics in the terminal
+- Save detailed timing to `ExecTimeMean.txt`
+
+### Build Optimization Tips
+
+<Tip>
+- Use Release build type for production use
+- Enable `-march=native` for maximum performance on your hardware
+- Use parallel compilation with `-j` flag to speed up builds
+- Ensure you have sufficient RAM (8GB+ recommended) for parallel builds
+</Tip>
+
+## Next Steps
+
+After successfully building ORB-SLAM3:
+
+1. [Configure your camera parameters](/guides/configuration) - Set up YAML configuration files
+2. [Calibrate your camera](/guides/calibration) - Perform camera and IMU calibration
+3. [Run example datasets](/examples/euroc) - Test with provided examples
+4. [Integrate with ROS](/guides/ros-integration) - Build and run ROS nodes

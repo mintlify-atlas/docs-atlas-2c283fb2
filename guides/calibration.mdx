@@ -1,0 +1,433 @@
+---
+title: Camera and IMU Calibration
+description: Guide to calibrating cameras and IMUs for accurate ORB-SLAM3 tracking and mapping
+---
+
+Accurate sensor calibration is critical for successful SLAM performance. This guide covers camera calibration, IMU calibration, and validation procedures for ORB-SLAM3.
+
+## Why Calibration Matters
+
+Proper calibration provides:
+
+- **Accurate camera intrinsics**: Correct focal length and principal point
+- **Distortion correction**: Removes lens distortion for accurate feature tracking
+- **Stereo geometry**: Precise baseline and relative pose between cameras
+- **IMU parameters**: Noise characteristics and camera-IMU transformation
+- **Scale estimation**: Correct metric scale in visual-inertial systems
+
+<Warning>
+Poor calibration is the most common cause of tracking failure. Always verify your calibration parameters before running ORB-SLAM3.
+</Warning>
+
+## Camera Calibration
+
+### Overview
+
+Camera calibration determines:
+
+1. **Intrinsic parameters**: `fx`, `fy`, `cx`, `cy`
+2. **Distortion coefficients**: `k1`, `k2`, `k3`, `p1`, `p2`
+3. **Stereo parameters**: Relative transformation `T_c1_c2` (for stereo rigs)
+
+### Calibration Requirements
+
+<Steps>
+  <Step title="Calibration target">
+    Use a checkerboard or AprilTag pattern:
+    - Checkerboard: 8×6 or larger, with known square size
+    - AprilTag: Standard tag families with known dimensions
+  </Step>
+  
+  <Step title="Image collection">
+    Collect 20-50 images with the calibration target:
+    - Cover the entire image plane
+    - Vary distance and orientation
+    - Include tilted and corner positions
+  </Step>
+  
+  <Step title="Good lighting">
+    Ensure uniform, bright lighting without glare or shadows on the calibration target.
+  </Step>
+</Steps>
+
+### Recommended Calibration Tools
+
+<Tabs>
+  <Tab title="Kalibr">
+    **Kalibr** is recommended for both camera and camera-IMU calibration.
+    
+    ```bash
+    # Install Kalibr (Docker method)
+    docker pull stereolabs/kalibr:kinetic
+    
+    # Camera calibration
+    kalibr_calibrate_cameras \
+      --bag camera_calibration.bag \
+      --topics /cam0/image_raw /cam1/image_raw \
+      --models pinhole-radtan pinhole-radtan \
+      --target april_6x6.yaml
+    
+    # Camera-IMU calibration
+    kalibr_calibrate_imu_camera \
+      --bag imu_camera_calibration.bag \
+      --cam camchain.yaml \
+      --imu imu.yaml \
+      --target april_6x6.yaml
+    ```
+    
+    **Advantages**:
+    - Supports multi-camera systems
+    - Camera-IMU calibration with temporal offset
+    - Excellent documentation and validation tools
+    - Outputs ready-to-use YAML files
+  </Tab>
+  
+  <Tab title="OpenCV">
+    **OpenCV** provides basic calibration functionality.
+    
+    ```python
+    import cv2
+    import numpy as np
+    
+    # Checkerboard dimensions
+    pattern_size = (8, 6)
+    square_size = 0.025  # meters
+    
+    # Find corners in calibration images
+    objpoints = []  # 3D points
+    imgpoints = []  # 2D image points
+    
+    for fname in image_files:
+        img = cv2.imread(fname)
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        
+        ret, corners = cv2.findChessboardCorners(gray, pattern_size)
+        
+        if ret:
+            objpoints.append(objp)
+            imgpoints.append(corners)
+    
+    # Calibrate camera
+    ret, mtx, dist, rvecs, tvecs = cv2.calibrateCamera(
+        objpoints, imgpoints, gray.shape[::-1], None, None
+    )
+    
+    print(f"fx: {mtx[0,0]}")
+    print(f"fy: {mtx[1,1]}")
+    print(f"cx: {mtx[0,2]}")
+    print(f"cy: {mtx[1,2]}")
+    print(f"Distortion: {dist}")
+    ```
+  </Tab>
+  
+  <Tab title="ROS camera_calibration">
+    **ROS camera_calibration** package for quick calibration.
+    
+    ```bash
+    # Install
+    sudo apt-get install ros-melodic-camera-calibration
+    
+    # Monocular calibration
+    rosrun camera_calibration cameracalibrator.py \
+      --size 8x6 \
+      --square 0.025 \
+      image:=/camera/image_raw
+    
+    # Stereo calibration
+    rosrun camera_calibration cameracalibrator.py \
+      --size 8x6 \
+      --square 0.025 \
+      right:=/camera/right/image_raw \
+      left:=/camera/left/image_raw
+    ```
+    
+    The tool provides interactive feedback and saves calibration to `~/.ros/camera_info/`.
+  </Tab>
+</Tabs>
+
+### ORB-SLAM3 Calibration Utilities
+
+ORB-SLAM3 includes recorder utilities for RealSense cameras:
+
+```bash
+# Build calibration examples
+cd Examples/Calibration
+
+# Record data with RealSense D435i
+./recorder_realsense_D435i
+
+# Record data with RealSense T265
+./recorder_realsense_T265
+```
+
+These tools record synchronized camera and IMU data for calibration with Kalibr.
+
+## Stereo Camera Calibration
+
+For stereo systems, you need both individual camera calibrations and the stereo transformation.
+
+### Stereo Baseline
+
+The baseline (`b`) is the physical distance between camera optical centers:
+
+```yaml
+Stereo.b: 0.110074  # meters (from T_c1_c2 translation)
+```
+
+Extract from the transformation matrix:
+```python
+baseline = np.linalg.norm(T_c1_c2[0:3, 3])
+```
+
+### Stereo Transformation Matrix
+
+The `Stereo.T_c1_c2` matrix encodes rotation and translation from left to right camera:
+
+```yaml
+Stereo.T_c1_c2: !!opencv-matrix
+  rows: 4
+  cols: 4
+  dt: f
+  data: [R11, R12, R13, tx,
+         R21, R22, R23, ty,
+         R31, R32, R33, tz,
+         0,   0,   0,   1]
+```
+
+Where:
+- `R`: 3×3 rotation matrix
+- `t = [tx, ty, tz]`: Translation vector (baseline)
+
+### Stereo Rectification
+
+For pinhole cameras, ORB-SLAM3 can rectify images online if you provide rectification matrices:
+
+```yaml
+# Include rectification in your YAML (optional)
+LEFT.K: !!opencv-matrix
+   rows: 3
+   cols: 3
+   dt: f
+   data: [fx, 0, cx, 0, fy, cy, 0, 0, 1]
+```
+
+<Tip>
+Fisheye camera models work directly with original unrectified images and don't require rectification.
+</Tip>
+
+## IMU Calibration
+
+For visual-inertial configurations, calibrate IMU parameters:
+
+### IMU Noise Parameters
+
+Determine noise characteristics through Allan variance analysis or from datasheet:
+
+```yaml
+IMU.NoiseGyro: 1.7e-04     # Gyroscope noise density [rad/s/√Hz]
+IMU.NoiseAcc: 2.0e-03       # Accelerometer noise density [m/s²/√Hz]
+IMU.GyroWalk: 1.9393e-05    # Gyroscope random walk [rad/s²/√Hz]
+IMU.AccWalk: 3.0e-03        # Accelerometer random walk [m/s³/√Hz]
+IMU.Frequency: 200.0        # IMU sample rate [Hz]
+```
+
+### Allan Variance Method
+
+<Steps>
+  <Step title="Collect static IMU data">
+    Record IMU measurements with the sensor completely stationary for 2-4 hours:
+    ```bash
+    rosbag record /imu -O imu_static.bag
+    ```
+  </Step>
+  
+  <Step title="Process with Allan tools">
+    Use `imu_utils` or similar tools:
+    ```bash
+    roslaunch imu_utils allan_variance.launch
+    ```
+  </Step>
+  
+  <Step title="Extract noise parameters">
+    Read values from the Allan variance plot:
+    - **Noise density**: Value at τ = 1 second
+    - **Bias random walk**: Slope of line at higher τ values
+  </Step>
+</Steps>
+
+### Camera-IMU Transformation
+
+The `IMU.T_b_c1` matrix transforms from camera to IMU (body) frame:
+
+```yaml
+IMU.T_b_c1: !!opencv-matrix
+  rows: 4
+  cols: 4
+  dt: f
+  data: [R11, R12, R13, tx,
+         R21, R22, R23, ty,
+         R31, R32, R33, tz,
+         0,   0,   0,   1]
+```
+
+**Calibration methods**:
+
+1. **Kalibr** (recommended): Estimates transformation from synchronized data
+2. **CAD measurements**: Use mechanical design specifications
+3. **Hand-eye calibration**: Specialized calibration routines
+
+<Warning>
+Incorrect camera-IMU transformation will cause scale drift and tracking failure in visual-inertial mode.
+</Warning>
+
+## Calibration Tutorial PDF
+
+ORB-SLAM3 includes a comprehensive calibration tutorial:
+
+```bash
+# View the tutorial
+cd ORB_SLAM3
+pdf_viewer Calibration_Tutorial.pdf
+```
+
+The tutorial covers:
+
+- Detailed calibration procedures
+- Camera model explanations
+- IMU calibration workflow
+- Configuration file format
+- Troubleshooting common issues
+
+<Tip>
+The `Calibration_Tutorial.pdf` is the official reference for visual-inertial calibration in ORB-SLAM3. Review it before calibrating your sensors.
+</Tip>
+
+## Validation and Testing
+
+### Reprojection Error
+
+Check calibration quality by examining reprojection error:
+
+```python
+# Good calibration: < 0.5 pixels RMS
+# Acceptable: 0.5 - 1.0 pixels
+# Poor: > 1.0 pixels (recalibrate)
+```
+
+### Visual Validation
+
+<Steps>
+  <Step title="Undistort test images">
+    Apply calibration and verify straight lines remain straight:
+    ```python
+    import cv2
+    img_undistorted = cv2.undistort(img, camera_matrix, dist_coeffs)
+    ```
+  </Step>
+  
+  <Step title="Check feature tracking">
+    Run ORB-SLAM3 and observe feature distribution in the viewer:
+    - Features should be evenly distributed
+    - No clustering or warping at edges
+  </Step>
+  
+  <Step title="Verify scale (VI-SLAM)">
+    For inertial systems, check that trajectory scale matches ground truth:
+    ```bash
+    # Compare estimated vs actual distances
+    python evaluate_ate.py groundtruth.txt trajectory.txt
+    ```
+  </Step>
+</Steps>
+
+### Common Validation Issues
+
+<Accordion title="Features cluster in center">
+  **Cause**: Distortion coefficients incorrect or missing.
+  
+  **Solution**: Recalibrate with more corner images and verify distortion model.
+</Accordion>
+
+<Accordion title="Stereo depth inconsistent">
+  **Cause**: Incorrect stereo transformation or poor synchronization.
+  
+  **Solution**: Verify camera synchronization and recalibrate stereo parameters.
+</Accordion>
+
+<Accordion title="Scale drift in VI-SLAM">
+  **Cause**: Incorrect IMU noise parameters or camera-IMU transformation.
+  
+  **Solution**: 
+  - Verify IMU.T_b_c1 transformation (±180° errors are common)
+  - Re-run Allan variance analysis
+  - Check IMU timestamp synchronization
+</Accordion>
+
+<Accordion title="Tracking fails immediately">
+  **Cause**: Extremely wrong intrinsics (wrong resolution, swapped fx/fy).
+  
+  **Solution**: Double-check image dimensions and parameter order in YAML.
+</Accordion>
+
+## Calibration Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Camera Calibration" icon="camera">
+    - Use high-resolution calibration images
+    - Cover entire field of view
+    - 20-50 images minimum
+    - Multiple distances and angles
+    - Check reprojection error < 0.5px
+  </Card>
+  
+  <Card title="IMU Calibration" icon="microchip">
+    - Static data collection: 2-4 hours
+    - Stable temperature environment
+    - Use Allan variance analysis
+    - Verify against datasheet values
+    - Test camera-IMU synchronization
+  </Card>
+  
+  <Card title="Validation" icon="check">
+    - Test with known geometry
+    - Verify undistortion visually
+    - Check scale accuracy (VI-SLAM)
+    - Run on example datasets first
+    - Compare with other SLAM systems
+  </Card>
+  
+  <Card title="Troubleshooting" icon="wrench">
+    - Start with monocular mode
+    - Test camera alone before IMU
+    - Verify timestamp synchronization
+    - Check coordinate frame conventions
+    - Review Calibration_Tutorial.pdf
+  </Card>
+</CardGroup>
+
+## Pre-Calibrated Examples
+
+ORB-SLAM3 includes calibration files for common datasets and cameras:
+
+```bash
+Examples/
+├── Stereo/
+│   ├── EuRoC.yaml              # EuRoC MAV dataset
+│   ├── KITTI00-02.yaml         # KITTI sequences 00-02
+│   ├── RealSense_D435i.yaml    # Intel RealSense D435i
+│   └── RealSense_T265.yaml     # Intel RealSense T265
+├── Stereo-Inertial/
+│   ├── EuRoC.yaml              # EuRoC with IMU
+│   └── TUM-VI.yaml             # TUM-VI dataset
+└── RGB-D/
+    ├── TUM1.yaml               # TUM RGB-D fr1
+    └── RealSense_D435i.yaml    # RealSense RGB-D
+```
+
+Use these as templates for your own calibration files.
+
+## Next Steps
+
+- [Configuration Guide](/guides/configuration) - Create configuration files from calibration
+- [Run EuRoC Examples](/examples/euroc) - Test with pre-calibrated datasets
+- [ROS Integration](/guides/ros-integration) - Use calibration with live camera feeds

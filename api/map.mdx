@@ -1,0 +1,489 @@
+---
+title: "Map"
+description: "Map data structure storing KeyFrames and MapPoints that represent the 3D environment"
+---
+
+## Overview
+
+The `Map` class represents a 3D map of the environment in ORB-SLAM3. It stores collections of KeyFrames and MapPoints, manages their lifecycle, and provides methods for querying and updating map contents. In ORB-SLAM3's multi-map architecture, each Map represents a distinct mapping session or merged map.
+
+```cpp
+namespace ORB_SLAM3 {
+    class Map;
+}
+```
+
+Defined in: `Map.h:41`
+
+## Key Features
+
+- Storage of KeyFrames and MapPoints
+- Reference MapPoint management for visualization
+- Map change tracking for loop closure and optimization
+- Inertial initialization support
+- Map merging capabilities
+- Bad map detection and cleanup
+
+## Constructors
+
+### Default Constructor
+
+```cpp
+Map();
+```
+
+Creates an empty map.
+
+### Constructor with Initial KeyFrame ID
+
+```cpp
+Map(int initKFid);
+```
+
+Creates a map with specified initial KeyFrame ID.
+
+**Parameters:**
+- `initKFid` - ID of the first KeyFrame in this map
+
+## Adding and Removing Elements
+
+### AddKeyFrame
+
+```cpp
+void AddKeyFrame(KeyFrame* pKF);
+```
+
+Adds a KeyFrame to the map.
+
+### AddMapPoint
+
+```cpp
+void AddMapPoint(MapPoint* pMP);
+```
+
+Adds a MapPoint to the map.
+
+### EraseKeyFrame
+
+```cpp
+void EraseKeyFrame(KeyFrame* pKF);
+```
+
+Removes a KeyFrame from the map.
+
+### EraseMapPoint
+
+```cpp
+void EraseMapPoint(MapPoint* pMP);
+```
+
+Removes a MapPoint from the map.
+
+### clear
+
+```cpp
+void clear();
+```
+
+Removes all KeyFrames and MapPoints from the map.
+
+## Querying Map Contents
+
+### GetAllKeyFrames
+
+```cpp
+std::vector<KeyFrame*> GetAllKeyFrames();
+```
+
+Returns a vector of all KeyFrames in the map.
+
+### GetAllMapPoints
+
+```cpp
+std::vector<MapPoint*> GetAllMapPoints();
+```
+
+Returns a vector of all MapPoints in the map.
+
+### KeyFramesInMap
+
+```cpp
+long unsigned KeyFramesInMap();
+```
+
+Returns the number of KeyFrames in the map.
+
+### MapPointsInMap
+
+```cpp
+long unsigned int MapPointsInMap();
+```
+
+Returns the number of MapPoints in the map.
+
+## Reference MapPoints
+
+Reference MapPoints are a subset used for tracking and visualization.
+
+### SetReferenceMapPoints
+
+```cpp
+void SetReferenceMapPoints(const std::vector<MapPoint*> &vpMPs);
+```
+
+Sets the reference MapPoints.
+
+### GetReferenceMapPoints
+
+```cpp
+std::vector<MapPoint*> GetReferenceMapPoints();
+```
+
+Returns the reference MapPoints.
+
+## Map Identification
+
+### GetId
+
+```cpp
+long unsigned int GetId();
+```
+
+Returns the unique map ID.
+
+### GetInitKFid
+
+```cpp
+long unsigned int GetInitKFid();
+```
+
+Returns the ID of the initial KeyFrame.
+
+### SetInitKFid
+
+```cpp
+void SetInitKFid(long unsigned int initKFif);
+```
+
+Sets the initial KeyFrame ID.
+
+### GetMaxKFid
+
+```cpp
+long unsigned int GetMaxKFid();
+```
+
+Returns the maximum KeyFrame ID in the map.
+
+### GetOriginKF
+
+```cpp
+KeyFrame* GetOriginKF();
+```
+
+Returns the origin KeyFrame of the map.
+
+### ChangeId
+
+```cpp
+void ChangeId(long unsigned int nId);
+```
+
+Changes the map ID (used during map merging).
+
+## Map State Management
+
+### SetCurrentMap
+
+```cpp
+void SetCurrentMap();
+```
+
+Marks this map as the currently active map.
+
+### SetStoredMap
+
+```cpp
+void SetStoredMap();
+```
+
+Marks this map as stored (inactive).
+
+### IsInUse
+
+```cpp
+bool IsInUse();
+```
+
+Returns true if the map is currently in use.
+
+### SetBad
+
+```cpp
+void SetBad();
+```
+
+Marks the map as bad (to be deleted).
+
+### IsBad
+
+```cpp
+bool IsBad();
+```
+
+Returns true if the map is marked as bad.
+
+## Map Changes
+
+### InformNewBigChange
+
+```cpp
+void InformNewBigChange();
+```
+
+Notifies that a big change occurred (loop closure, global BA).
+
+### GetLastBigChangeIdx
+
+```cpp
+int GetLastBigChangeIdx();
+```
+
+Returns the index of the last big change.
+
+### GetMapChangeIndex
+
+```cpp
+int GetMapChangeIndex();
+```
+
+Returns the current map change index.
+
+### IncreaseChangeIndex
+
+```cpp
+void IncreaseChangeIndex();
+```
+
+Increments the map change counter.
+
+### GetLastMapChange / SetLastMapChange
+
+```cpp
+int GetLastMapChange();
+void SetLastMapChange(int currentChangeId);
+```
+
+Gets or sets the last map change notification.
+
+## Inertial SLAM
+
+<Note>
+Inertial functions are only relevant when using ORB-SLAM3 with IMU.
+</Note>
+
+### SetInertialSensor
+
+```cpp
+void SetInertialSensor();
+```
+
+Marks this map as using inertial sensor.
+
+### IsInertial
+
+```cpp
+bool IsInertial();
+```
+
+Returns true if map uses inertial sensor.
+
+### SetImuInitialized
+
+```cpp
+void SetImuInitialized();
+```
+
+Marks IMU as initialized for this map.
+
+### isImuInitialized
+
+```cpp
+bool isImuInitialized();
+```
+
+Returns true if IMU is initialized.
+
+### SetIniertialBA1 / SetIniertialBA2
+
+```cpp
+void SetIniertialBA1();
+void SetIniertialBA2();
+```
+
+Marks completion of inertial bundle adjustment phases.
+
+### GetIniertialBA1 / GetIniertialBA2
+
+```cpp
+bool GetIniertialBA1();
+bool GetIniertialBA2();
+```
+
+Returns status of inertial bundle adjustment phases.
+
+## Map Transformation
+
+### ApplyScaledRotation
+
+```cpp
+void ApplyScaledRotation(const Sophus::SE3f &T, const float s, 
+                         const bool bScaledVel=false);
+```
+
+Applies a scaled rotation transformation to the entire map (used in map merging and scale correction).
+
+**Parameters:**
+- `T` - SE3 transformation
+- `s` - Scale factor
+- `bScaledVel` - Whether to scale velocities
+
+## Data Members
+
+### Map Storage
+
+```cpp
+// Map ID
+long unsigned int mnId;
+static long unsigned int nNextId;
+
+// KeyFrames and MapPoints
+std::set<KeyFrame*> mspKeyFrames;
+std::set<MapPoint*> mspMapPoints;
+
+// Reference MapPoints for tracking
+std::vector<MapPoint*> mvpReferenceMapPoints;
+```
+
+### KeyFrame Information
+
+```cpp
+// Initial KeyFrame
+KeyFrame* mpKFinitial;
+KeyFrame* mpKFlowerID;
+
+long unsigned int mnInitKFid;
+long unsigned int mnMaxKFid;
+```
+
+### Map Origin
+
+```cpp
+// KeyFrame origins
+vector<KeyFrame*> mvpKeyFrameOrigins;
+KeyFrame* mpFirstRegionKF;
+```
+
+### Map State
+
+```cpp
+bool mIsInUse;
+bool mbBad;
+bool mbFail;
+```
+
+### Inertial Flags
+
+```cpp
+bool mbIsInertial;
+bool mbImuInitialized;
+bool mbIMU_BA1;
+bool mbIMU_BA2;
+```
+
+### Change Tracking
+
+```cpp
+// Change indices
+int mnMapChange;
+int mnMapChangeNotified;
+int mnBigChangeIdx;
+```
+
+### Visualization
+
+```cpp
+// Thumbnail for visualization
+static const int THUMB_WIDTH = 512;
+static const int THUMB_HEIGHT = 512;
+GLubyte* mThumbnail;
+bool mHasTumbnail;
+```
+
+## Thread Safety
+
+```cpp
+std::mutex mMutexMap;           // General map access
+std::mutex mMutexMapUpdate;     // Map updates
+std::mutex mMutexPointCreation; // MapPoint creation
+```
+
+## Serialization Support
+
+```cpp
+// Backup vectors for serialization
+std::vector<MapPoint*> mvpBackupMapPoints;
+std::vector<KeyFrame*> mvpBackupKeyFrames;
+vector<unsigned long int> mvBackupKeyFrameOriginsId;
+
+unsigned long int mnBackupKFinitialID;
+unsigned long int mnBackupKFlowerID;
+```
+
+### PreSave
+
+```cpp
+void PreSave(std::set<GeometricCamera*> &spCams);
+```
+
+Prepares the map for serialization.
+
+### PostLoad
+
+```cpp
+void PostLoad(KeyFrameDatabase* pKFDB, ORBVocabulary* pORBVoc, 
+              map<unsigned int, GeometricCamera*> &mpCams);
+```
+
+Restores the map after deserialization.
+
+## Usage Example
+
+```cpp
+// Create a new map
+Map* pMap = new Map();
+
+// Add KeyFrames and MapPoints
+pMap->AddKeyFrame(pKF);
+pMap->AddMapPoint(pMP);
+
+// Query map contents
+vector<KeyFrame*> vpKFs = pMap->GetAllKeyFrames();
+vector<MapPoint*> vpMPs = pMap->GetAllMapPoints();
+
+std::cout << "Map has " << pMap->KeyFramesInMap() 
+          << " KeyFrames and " << pMap->MapPointsInMap() 
+          << " MapPoints" << std::endl;
+
+// Check if inertial
+if (pMap->IsInertial()) {
+    std::cout << "Map uses IMU" << std::endl;
+}
+
+// Notify big change after loop closure
+pMap->InformNewBigChange();
+```
+
+<Info>
+In ORB-SLAM3's multi-map system, the Atlas manages multiple Map instances, allowing seamless switching between maps and map merging.
+</Info>

@@ -1,0 +1,458 @@
+---
+title: KITTI Dataset Examples
+description: Running ORB-SLAM3 with the KITTI Vision Benchmark Suite for autonomous driving
+---
+
+The [KITTI dataset](http://www.cvlibs.net/datasets/kitti/) is a widely-used benchmark for autonomous driving research. ORB-SLAM3 provides examples for processing KITTI's stereo and monocular sequences.
+
+## Dataset Overview
+
+The KITTI dataset provides:
+- **Stereo camera setup** (rectified grayscale, 10 Hz)
+- **Large-scale outdoor environments** (urban, residential, highway)
+- **Ground truth from GPS/IMU** (for some sequences)
+- **22 stereo sequences** for odometry benchmark
+- **Challenging conditions** (moving objects, lighting changes)
+
+### Key Characteristics
+
+<CardGroup cols={2}>
+  <Card title="Autonomous Driving" icon="car">
+    Real-world driving scenarios with moving vehicles and pedestrians.
+  </Card>
+  
+  <Card title="Large Scale" icon="road">
+    Long sequences covering several kilometers.
+  </Card>
+  
+  <Card title="Rectified Stereo" icon="images">
+    Pre-rectified images ready for stereo processing.
+  </Card>
+  
+  <Card title="GPS Ground Truth" icon="location-dot">
+    Accurate position data for evaluation.
+  </Card>
+</CardGroup>
+
+## Download Instructions
+
+<Steps>
+  <Step title="Visit KITTI website">
+    Navigate to: http://www.cvlibs.net/datasets/kitti/eval_odometry.php
+  </Step>
+  
+  <Step title="Download sequences">
+    You'll need:
+    - **Left camera images** (grayscale)
+    - **Right camera images** (grayscale) - for stereo
+    - **Ground truth poses** - for evaluation
+    - **Calibration files**
+    
+    Download the odometry dataset (sequences 00-21).
+  </Step>
+  
+  <Step title="Extract the data">
+    ```bash
+    # Extract sequences
+    unzip data_odometry_gray.zip -d ~/Datasets/KITTI/
+    unzip data_odometry_calib.zip -d ~/Datasets/KITTI/
+    unzip data_odometry_poses.zip -d ~/Datasets/KITTI/
+    ```
+    
+    Directory structure:
+    ```
+    KITTI/
+    ├── sequences/
+    │   ├── 00/
+    │   │   ├── image_0/     # Left camera
+    │   │   │   ├── 000000.png
+    │   │   │   ├── 000001.png
+    │   │   │   └── ...
+    │   │   ├── image_1/     # Right camera
+    │   │   ├── calib.txt    # Calibration
+    │   │   └── times.txt    # Timestamps
+    │   ├── 01/
+    │   └── .../
+    └── poses/
+        ├── 00.txt           # Ground truth
+        └── .../
+    ```
+  </Step>
+</Steps>
+
+## Running Monocular Examples
+
+Process KITTI sequences using only the left camera:
+
+```bash
+./Examples/Monocular/mono_kitti \
+    Vocabulary/ORBvoc.txt \
+    Examples/Monocular/KITTI00-02.yaml \
+    ~/Datasets/KITTI/sequences/00/
+```
+
+### Code Structure
+
+The monocular KITTI example (mono_kitti.cc:108) reads images sequentially:
+
+```cpp
+// Load image from sequence
+im = cv::imread(vstrImageFilenames[ni], cv::IMREAD_UNCHANGED);
+
+// Track monocular frame
+SLAM.TrackMonocular(im, timestamp);
+```
+
+### Sequence-Specific Configurations
+
+KITTI sequences have different calibrations:
+
+<Tabs>
+  <Tab title="Sequences 00-02">
+    ```bash
+    ./Examples/Monocular/mono_kitti \
+        Vocabulary/ORBvoc.txt \
+        Examples/Monocular/KITTI00-02.yaml \
+        ~/Datasets/KITTI/sequences/00/
+    ```
+  </Tab>
+  
+  <Tab title="Sequences 03">
+    ```bash
+    ./Examples/Monocular/mono_kitti \
+        Vocabulary/ORBvoc.txt \
+        Examples/Monocular/KITTI03.yaml \
+        ~/Datasets/KITTI/sequences/03/
+    ```
+  </Tab>
+  
+  <Tab title="Sequences 04-12">
+    ```bash
+    ./Examples/Monocular/mono_kitti \
+        Vocabulary/ORBvoc.txt \
+        Examples/Monocular/KITTI04-12.yaml \
+        ~/Datasets/KITTI/sequences/04/
+    ```
+  </Tab>
+</Tabs>
+
+<Note>
+Different KITTI sequences use different camera calibrations. Always use the appropriate YAML file.
+</Note>
+
+## Running Stereo Examples
+
+Process both left and right cameras for accurate depth estimation:
+
+```bash
+./Examples/Stereo/stereo_kitti \
+    Vocabulary/ORBvoc.txt \
+    Examples/Stereo/KITTI00-02.yaml \
+    ~/Datasets/KITTI/sequences/00/
+```
+
+### Why Stereo for KITTI?
+
+<CardGroup cols={2}>
+  <Card title="Accurate Scale" icon="ruler">
+    Stereo provides metric scale without drift, critical for driving applications.
+  </Card>
+  
+  <Card title="Better Initialization" icon="flag">
+    Instant depth from first frame enables faster startup.
+  </Card>
+  
+  <Card title="Robust Tracking" icon="shield">
+    Depth constraints improve tracking in feature-poor areas (sky, roads).
+  </Card>
+  
+  <Card title="Direct Comparison" icon="chart-line">
+    Easier evaluation against GPS/IMU ground truth.
+  </Card>
+</CardGroup>
+
+### Image Loading
+
+The stereo example loads pre-rectified image pairs:
+
+```cpp
+// LoadImages reads times.txt and constructs paths
+vector<string> vstrImageLeft, vstrImageRight;
+vector<double> vTimestamps;
+LoadImages(strPathToSequence, vstrImageLeft, vstrImageRight, vTimestamps);
+
+// Load left and right images
+imLeft = cv::imread(vstrImageLeft[ni], cv::IMREAD_UNCHANGED);
+imRight = cv::imread(vstrImageRight[ni], cv::IMREAD_UNCHANGED);
+
+// Track stereo frame
+SLAM.TrackStereo(imLeft, imRight, timestamp);
+```
+
+## Typical Use Cases
+
+KITTI sequences represent different driving scenarios:
+
+### Urban Sequences
+
+<Tabs>
+  <Tab title="Sequence 00">
+    **Environment**: Urban neighborhood
+    - Length: 4541 frames (~7 minutes)
+    - Features: Buildings, parked cars, trees
+    - Difficulty: Moderate
+  </Tab>
+  
+  <Tab title="Sequence 05">
+    **Environment**: Urban with traffic
+    - Length: 2761 frames
+    - Features: Moving vehicles, intersections
+    - Difficulty: Challenging (moving objects)
+  </Tab>
+</Tabs>
+
+### Highway Sequences
+
+<Tabs>
+  <Tab title="Sequence 01">
+    **Environment**: Highway
+    - Length: 1101 frames
+    - Features: Guard rails, distant background
+    - Difficulty: Moderate (high speed)
+  </Tab>
+  
+  <Tab title="Sequence 02">
+    **Environment**: Urban + Highway
+    - Length: 4661 frames
+    - Features: Mixed environment
+    - Difficulty: Moderate
+  </Tab>
+</Tabs>
+
+### Challenging Sequences
+
+<Tabs>
+  <Tab title="Sequence 08">
+    **Environment**: Residential
+    - Length: 4071 frames
+    - Features: Complex loops, similar structures
+    - Difficulty: High (requires loop closure)
+  </Tab>
+  
+  <Tab title="Sequence 10">
+    **Environment**: Mixed urban
+    - Length: 1201 frames  
+    - Features: Lighting changes, shadows
+    - Difficulty: High
+  </Tab>
+</Tabs>
+
+## Output and Evaluation
+
+### Trajectory Format
+
+KITTI examples save trajectories in TUM format by default (mono_kitti.cc:151):
+
+```cpp
+SLAM.SaveKeyFrameTrajectoryTUM("KeyFrameTrajectory.txt");
+```
+
+Format:
+```
+timestamp tx ty tz qx qy qz qw
+```
+
+### Converting to KITTI Format
+
+For submission to KITTI benchmark, convert to KITTI pose format:
+
+```python
+# Each line is a 3x4 transformation matrix (flattened)
+r11 r12 r13 tx r21 r22 r23 ty r31 r32 r33 tz
+```
+
+### Evaluation with Ground Truth
+
+```bash
+# Evaluate trajectory against ground truth
+python evaluation/evaluate_kitti.py \
+    ~/Datasets/KITTI/poses/00.txt \
+    KeyFrameTrajectory.txt
+```
+
+Metrics reported:
+- Translation error (%)
+- Rotation error (deg/m)
+- Success rate
+
+## Performance Considerations
+
+### Speed vs Accuracy
+
+<Tabs>
+  <Tab title="Real-time Processing">
+    For 10 Hz real-time processing:
+    ```yaml
+    ORBextractor.nFeatures: 1000
+    ORBextractor.scaleFactor: 1.2
+    ORBextractor.nLevels: 8
+    ```
+  </Tab>
+  
+  <Tab title="High Accuracy">
+    For best accuracy (slower):
+    ```yaml
+    ORBextractor.nFeatures: 2000
+    ORBextractor.scaleFactor: 1.2  
+    ORBextractor.nLevels: 8
+    ```
+  </Tab>
+</Tabs>
+
+### Hardware Requirements
+
+<Note>
+KITTI sequences are long and computationally demanding. Recommended hardware:
+- CPU: Intel i7 or better
+- RAM: 8GB minimum
+- Storage: 100GB for full dataset
+</Note>
+
+## Configuration Files
+
+KITTI uses pinhole camera parameters:
+
+```yaml
+# Camera calibration (example from KITTI00-02.yaml)
+Camera.type: "PinHole"
+
+Camera.fx: 718.856
+Camera.fy: 718.856
+Camera.cx: 607.1928
+Camera.cy: 185.2157
+
+# Distortion parameters (already rectified)
+Camera.k1: 0.0
+Camera.k2: 0.0
+Camera.p1: 0.0
+Camera.p2: 0.0
+
+# Stereo baseline (meters)
+Camera.bf: 387.5744  # baseline * fx
+
+# Image resolution
+Camera.width: 1241
+Camera.height: 376
+```
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Scale Drift in Monocular">
+    Monocular SLAM has no absolute scale:
+    - Scale drift is expected over long sequences
+    - Use stereo mode for metric scale
+    - Loop closures help reduce drift
+  </Accordion>
+  
+  <Accordion title="Tracking Lost on Highway">
+    Highways have fewer features:
+    - Increase `ORBextractor.nFeatures`
+    - Use stereo mode for depth constraints
+    - Guard rails and lane markings provide tracking
+  </Accordion>
+  
+  <Accordion title="Moving Object Interference">
+    Cars and pedestrians can affect SLAM:
+    - ORB-SLAM3 is designed to handle outliers
+    - Most moving objects are automatically rejected
+    - Some sequences may have temporary tracking issues
+  </Accordion>
+  
+  <Accordion title="Loop Closure Not Working">
+    For sequences with loops (e.g., 08):
+    - Ensure vocabulary loaded correctly
+    - Allow sufficient processing time
+    - Check that place recognition is enabled
+  </Accordion>
+</AccordionGroup>
+
+## Comparing Results
+
+### Expected Performance
+
+Typical results on KITTI sequences:
+
+| Sequence | Length | Translation Error | Rotation Error |
+|----------|--------|-------------------|----------------|
+| 00 | 3.7 km | 0.75% | 0.003 deg/m |
+| 01 | 1.0 km | 1.2% | 0.004 deg/m |
+| 02 | 5.1 km | 0.9% | 0.003 deg/m |
+| 05 | 2.2 km | 0.8% | 0.003 deg/m |
+
+<Note>
+Results shown are for stereo mode. Monocular mode typically has higher drift.
+</Note>
+
+## Advanced: Custom KITTI Data
+
+To use your own KITTI-format data:
+
+<Steps>
+  <Step title="Organize images">
+    ```
+    my_sequence/
+    ├── image_0/
+    │   ├── 000000.png
+    │   └── ...
+    ├── image_1/           # For stereo
+    │   ├── 000000.png  
+    │   └── ...
+    └── times.txt
+    ```
+  </Step>
+  
+  <Step title="Create times.txt">
+    One timestamp per line (seconds):
+    ```
+    0.0
+    0.1
+    0.2
+    ...
+    ```
+  </Step>
+  
+  <Step title="Calibrate camera">
+    Create a custom YAML file with your camera parameters.
+    See [Camera Configuration](/configuration/camera-settings).
+  </Step>
+  
+  <Step title="Run example">
+    ```bash
+    ./Examples/Stereo/stereo_kitti \
+        Vocabulary/ORBvoc.txt \
+        my_settings.yaml \
+        my_sequence/
+    ```
+  </Step>
+</Steps>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="EuRoC Dataset" icon="drone" href="/examples/euroc-dataset">
+    Try indoor sequences with IMU
+  </Card>
+  
+  <Card title="Camera Calibration" icon="camera" href="/configuration/camera-settings">
+    Calibrate your own stereo rig
+  </Card>
+  
+  <Card title="Loop Closure" icon="arrows-rotate" href="/guides/loop-closure">
+    Understanding place recognition
+  </Card>
+  
+  <Card title="Custom Datasets" icon="folder" href="/guides/custom-datasets">
+    Process your own sequences
+  </Card>
+</CardGroup>

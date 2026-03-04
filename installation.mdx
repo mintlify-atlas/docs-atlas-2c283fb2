@@ -1,0 +1,268 @@
+---
+title: Installation
+description: Step-by-step guide to install ORB-SLAM3 and its dependencies
+---
+
+## System Requirements
+
+ORB-SLAM3 has been tested on **Ubuntu 16.04** and **18.04**, but should be easy to compile on other Linux platforms.
+
+<Note>
+  A powerful computer (e.g., Intel i7 processor) is recommended to ensure real-time performance and more stable, accurate results.
+</Note>
+
+## Prerequisites
+
+Before building ORB-SLAM3, you need to install the following dependencies:
+
+### C++11 or C++0x Compiler
+
+ORB-SLAM3 uses C++11 thread and chrono functionalities. Make sure you have a compatible compiler:
+
+```bash
+g++ --version  # Should be 4.7 or higher
+```
+
+### OpenCV
+
+ORB-SLAM3 uses OpenCV for image manipulation and feature processing.
+
+<Warning>
+  OpenCV 3.0 or higher is required. ORB-SLAM3 has been tested with OpenCV 3.2.0 and 4.4.0.
+</Warning>
+
+```bash
+# Install OpenCV (Ubuntu/Debian)
+sudo apt update
+sudo apt install libopencv-dev
+
+# Verify installation
+pkg-config --modversion opencv
+```
+
+For manual installation, download from [opencv.org](http://opencv.org).
+
+### Eigen3
+
+Eigen3 is required by g2o for linear algebra operations.
+
+<Info>
+  Eigen 3.1.0 or higher is required.
+</Info>
+
+```bash
+# Install Eigen3 (Ubuntu/Debian)
+sudo apt install libeigen3-dev
+
+# Verify installation
+ls /usr/include/eigen3
+```
+
+For manual installation, visit [eigen.tuxfamily.org](http://eigen.tuxfamily.org).
+
+### Pangolin
+
+Pangolin is used for visualization and user interface.
+
+```bash
+# Install dependencies
+sudo apt install libgl1-mesa-dev libglew-dev
+
+# Clone and build Pangolin
+git clone https://github.com/stevenlovegrove/Pangolin.git
+cd Pangolin
+mkdir build && cd build
+cmake ..
+make -j4
+sudo make install
+```
+
+For detailed instructions, see the [Pangolin repository](https://github.com/stevenlovegrove/Pangolin).
+
+### Python and NumPy
+
+Python with NumPy is required for trajectory evaluation and alignment with ground truth.
+
+```bash
+# Ubuntu/Debian
+sudo apt install libpython2.7-dev python-numpy
+
+# Or for Python 3
+sudo apt install python3-dev python3-numpy
+```
+
+### ROS (Optional)
+
+If you plan to use the ROS examples, install ROS Melodic (Ubuntu 18.04) or ROS Kinetic (Ubuntu 16.04).
+
+<Accordion title="ROS Installation (Optional)">
+  ```bash
+  # For Ubuntu 18.04 (ROS Melodic)
+  sudo sh -c 'echo "deb http://packages.ros.org/ros/ubuntu $(lsb_release -sc) main" > /etc/apt/sources.list.d/ros-latest.list'
+  sudo apt-key adv --keyserver 'hkp://keyserver.ubuntu.com:80' --recv-key C1CF6E31E6BADE8868B172B4F42ED6FBAB17C654
+  sudo apt update
+  sudo apt install ros-melodic-desktop-full
+  ```
+  
+  See the [ROS installation guide](http://wiki.ros.org/ROS/Installation) for more details.
+</Accordion>
+
+## Installation Steps
+
+<Steps>
+  <Step title="Clone the Repository">
+    Clone the ORB-SLAM3 repository from GitHub:
+    
+    ```bash
+    git clone https://github.com/UZ-SLAMLab/ORB_SLAM3.git ORB_SLAM3
+    cd ORB_SLAM3
+    ```
+  </Step>
+
+  <Step title="Build Third-Party Libraries">
+    ORB-SLAM3 includes modified versions of DBoW2, g2o, and Sophus in the `Thirdparty` folder. The build script will compile these automatically.
+    
+    <Info>
+      The `build.sh` script will:
+      - Build DBoW2 (place recognition)
+      - Build g2o (graph optimization)
+      - Build Sophus (Lie algebra)
+      - Extract the ORB vocabulary
+      - Build the ORB-SLAM3 library and examples
+    </Info>
+    
+    Make the build script executable:
+    
+    ```bash
+    chmod +x build.sh
+    ```
+  </Step>
+
+  <Step title="Run the Build Script">
+    Execute the build script to compile everything:
+    
+    ```bash
+    ./build.sh
+    ```
+    
+    This process may take several minutes depending on your system. The script will:
+    1. Build DBoW2 in `Thirdparty/DBoW2/build`
+    2. Build g2o in `Thirdparty/g2o/build`
+    3. Build Sophus in `Thirdparty/Sophus/build`
+    4. Extract the ORB vocabulary from `Vocabulary/ORBvoc.txt.tar.gz`
+    5. Build the main ORB-SLAM3 library
+    6. Compile all example executables
+  </Step>
+
+  <Step title="Verify Installation">
+    After successful compilation, verify that the library and executables were created:
+    
+    ```bash
+    # Check that the library was built
+    ls lib/libORB_SLAM3.so
+    
+    # Check that example executables exist
+    ls Examples/Monocular/mono_tum
+    ls Examples/Stereo/stereo_euroc
+    ls Examples/RGB-D/rgbd_tum
+    ```
+    
+    If these files exist, the installation was successful!
+  </Step>
+</Steps>
+
+## Build Outputs
+
+The build process creates the following:
+
+- **`lib/libORB_SLAM3.so`**: The main ORB-SLAM3 shared library
+- **`Examples/*/`**: Executable binaries for each sensor configuration:
+  - `Monocular/`: Monocular SLAM examples
+  - `Stereo/`: Stereo SLAM examples
+  - `RGB-D/`: RGB-D SLAM examples
+  - `Monocular-Inertial/`: Monocular + IMU examples
+  - `Stereo-Inertial/`: Stereo + IMU examples
+  - `RGB-D-Inertial/`: RGB-D + IMU examples
+
+## Building ROS Examples (Optional)
+
+If you want to use ORB-SLAM3 with ROS:
+
+<Steps>
+  <Step title="Add to ROS Package Path">
+    Add the ORB-SLAM3 ROS examples to your ROS package path:
+    
+    ```bash
+    echo "export ROS_PACKAGE_PATH=\${ROS_PACKAGE_PATH}:$(pwd)/Examples/ROS" >> ~/.bashrc
+    source ~/.bashrc
+    ```
+  </Step>
+
+  <Step title="Build ROS Nodes">
+    Run the ROS build script:
+    
+    ```bash
+    chmod +x build_ros.sh
+    ./build_ros.sh
+    ```
+    
+    This creates ROS nodes for Mono, Stereo, RGB-D, and their inertial variants.
+  </Step>
+</Steps>
+
+## Troubleshooting
+
+### OpenCV Version Mismatch
+
+If you encounter OpenCV version errors:
+
+```bash
+# Check your OpenCV version
+pkg-config --modversion opencv
+
+# If needed, install a specific version
+sudo apt install libopencv-dev=4.4.0*
+```
+
+### Compilation Errors with C++11
+
+Ensure your compiler supports C++11:
+
+```bash
+# Update GCC if necessary
+sudo apt install gcc-7 g++-7
+sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-7 60
+sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-7 60
+```
+
+### Pangolin Not Found
+
+If CMake cannot find Pangolin:
+
+```bash
+# Make sure Pangolin is installed to a standard location
+export CMAKE_PREFIX_PATH=/usr/local:$CMAKE_PREFIX_PATH
+
+# Or specify the path explicitly
+cmake -DPangolin_DIR=/path/to/Pangolin/build ..
+```
+
+### Permission Issues
+
+If you encounter permission errors during build:
+
+```bash
+# Make sure all scripts are executable
+chmod +x build.sh build_ros.sh
+
+# If installing system-wide, you may need sudo
+sudo make install
+```
+
+## Next Steps
+
+Now that ORB-SLAM3 is installed, you're ready to run your first example!
+
+<Card title="Quick Start Guide" icon="rocket" href="/quickstart">
+  Learn how to run your first SLAM example
+</Card>

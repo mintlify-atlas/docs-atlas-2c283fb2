@@ -1,0 +1,479 @@
+---
+title: Trajectory Evaluation
+description: Evaluate ORB-SLAM3 accuracy using ground truth trajectories and standard metrics
+---
+
+ORB-SLAM3 provides Python scripts for evaluating trajectory accuracy against ground truth data using standard SLAM metrics.
+
+## Evaluation Scripts
+
+The `evaluation/` directory contains Python tools for trajectory analysis:
+
+```bash
+evaluation/
+├── evaluate_ate_scale.py    # Absolute Trajectory Error with scale estimation
+├── associate.py             # Timestamp association between trajectories
+└── Ground_truth/
+    ├── EuRoC_left_cam/      # Ground truth for EuRoC visual-only
+    └── EuRoC_imu/           # Ground truth for EuRoC visual-inertial
+```
+
+## Trajectory Alignment
+
+### Timestamp Association
+
+The `associate.py` script matches timestamps between estimated and ground truth trajectories:
+
+```bash
+python evaluation/associate.py \
+    ground_truth.txt \
+    estimated_trajectory.txt \
+    --max_difference 0.02 \
+    --offset 0.0
+```
+
+<Accordion title="associate.py Parameters">
+
+**Arguments**:
+- `first_file`: Ground truth trajectory (format: `timestamp tx ty tz qx qy qz qw`)
+- `second_file`: Estimated trajectory (same format)
+- `--offset`: Time offset between trajectories (default: 0.0)
+- `--max_difference`: Maximum time difference for matching (default: 0.02s)
+- `--first_only`: Output only first file timestamps
+
+**Output Format**:
+```
+timestamp1 tx1 ty1 tz1 qx1 qy1 qz1 qw1 timestamp2 tx2 ty2 tz2 qx2 qy2 qz2 qw2
+```
+
+</Accordion>
+
+### Coordinate Frame Alignment
+
+<Note>
+For EuRoC visual-only trajectories, ground truth must be transformed from IMU frame to left camera frame.
+</Note>
+
+From README.md:126-127:
+> EuRoC provides ground truth for each sequence in the IMU body reference. As pure visual executions report trajectories centered in the left camera, we provide in the "evaluation" folder the transformation of the ground truth to the left camera reference.
+
+## Absolute Trajectory Error (ATE)
+
+### Computing ATE with Scale Estimation
+
+The `evaluate_ate_scale.py` script computes ATE using the method of Horn for trajectory alignment:
+
+```bash
+python evaluation/evaluate_ate_scale.py \
+    ground_truth.txt \
+    estimated_trajectory.txt \
+    --plot trajectory_comparison.pdf \
+    --verbose
+```
+
+### ATE Computation Method
+
+The script performs SE(3) alignment using SVD (evaluate_ate_scale.py:49-99):
+
+<Accordion title="Alignment Algorithm Details">
+
+1. **Zero-center both trajectories**:
+   ```python
+   model_zerocentered = model - model.mean(1)
+   data_zerocentered = data - data.mean(1)
+   ```
+
+2. **Compute rotation using SVD**:
+   ```python
+   W = Σ outer(model[:,i], data[:,i])
+   U, d, Vh = svd(W.transpose())
+   rot = U * S * Vh
+   ```
+
+3. **Compute scale factor**:
+   ```python
+   s = Σ(data · rot*model) / Σ(||model||²)
+   ```
+
+4. **Compute translation**:
+   ```python
+   trans = data.mean() - s * rot * model.mean()
+   ```
+
+5. **Calculate alignment error**:
+   ```python
+   aligned_model = s * rot * model + trans
+   error = sqrt(Σ(aligned_model - data)²)
+   ```
+
+</Accordion>
+
+### Script Parameters
+
+<Accordion title="evaluate_ate_scale.py Options">
+
+```bash
+python evaluation/evaluate_ate_scale.py --help
+```
+
+**Required Arguments**:
+- `first_file`: Ground truth trajectory
+- `second_file`: Estimated trajectory
+
+**Optional Arguments**:
+- `--offset`: Time offset (default: 0.0)
+- `--scale`: Pre-apply scale to second trajectory (default: 1.0)
+- `--max_difference`: Max timestamp difference in ns (default: 20000000)
+- `--save`: Save aligned trajectory to file
+- `--save_associations`: Save associated trajectory pairs
+- `--plot`: Generate comparison plot (PDF)
+- `--verbose`: Print detailed statistics
+- `--verbose2`: Print both scaled and unscaled RMSE
+
+**Output Format** (default):
+```
+RMSE, scale_factor, RMSE_with_scale
+```
+
+**Output Format** (`--verbose`):
+```
+compared_pose_pairs: N pairs
+absolute_translational_error.rmse: X.XXX m
+absolute_translational_error.mean: X.XXX m
+absolute_translational_error.median: X.XXX m
+absolute_translational_error.std: X.XXX m
+absolute_translational_error.min: X.XXX m
+absolute_translational_error.max: X.XXX m
+```
+
+</Accordion>
+
+## EuRoC Dataset Evaluation
+
+### Ground Truth Files
+
+The `evaluation/Ground_truth/` directory contains pre-transformed ground truth:
+
+<Accordion title="Available Ground Truth Files">
+
+**EuRoC Left Camera Frame** (`EuRoC_left_cam/`):
+- `MH01_GT.txt` through `MH05_GT.txt` - Machine Hall sequences
+- `V101_GT.txt` through `V203_GT.txt` - Vicon Room sequences
+
+**EuRoC IMU Frame** (`EuRoC_imu/`):
+- `MH_GT.txt` - Machine Hall
+- `V1_GT.txt`, `V2_GT.txt` - Vicon Room
+
+<Note>
+Use `EuRoC_left_cam/` for visual-only SLAM, `EuRoC_imu/` for visual-inertial SLAM.
+</Note>
+
+</Accordion>
+
+### Example Evaluation Workflow
+
+```bash
+# 1. Run ORB-SLAM3 on EuRoC sequence
+./Examples/Stereo/stereo_euroc \
+    Vocabulary/ORBvoc.txt \
+    Examples/Stereo/EuRoC.yaml \
+    /path/to/EuRoC/MH01 \
+    Examples/Stereo/EuRoC_TimeStamps/MH01.txt
+
+# 2. Save trajectory (automatically saved as CameraTrajectory.txt)
+
+# 3. Evaluate against ground truth
+python evaluation/evaluate_ate_scale.py \
+    evaluation/Ground_truth/EuRoC_left_cam/MH01_GT.txt \
+    CameraTrajectory.txt \
+    --verbose
+```
+
+<Tip>
+For batch evaluation of multiple sequences, see the `euroc_eval_examples.sh` script in the repository root.
+</Tip>
+
+## Relative Pose Error (RPE)
+
+While ORB-SLAM3 provides ATE evaluation, RPE can be computed using external tools:
+
+<Accordion title="Computing RPE with evo Package">
+
+```bash
+# Install evo (Python trajectory evaluation toolbox)
+pip install evo
+
+# Compute RPE
+evo_rpe tum ground_truth.txt estimated_trajectory.txt \
+    --pose_relation trans_part \
+    --delta 1.0 \
+    --verbose
+
+# Generate RPE plot
+evo_rpe tum ground_truth.txt estimated_trajectory.txt \
+    --plot --plot_mode xy
+```
+
+**RPE Parameters**:
+- `--delta`: Distance between pose pairs (meters)
+- `--pose_relation`: `trans_part` (translation only) or `full` (SE(3))
+- `--all_pairs`: Use all pose pairs instead of consecutive
+
+</Accordion>
+
+## TUM-VI Dataset Evaluation
+
+From README.md:146-151:
+> In TUM-VI ground truth is only available in the room where all sequences start and end. As a result the error measures the drift at the end of the sequence.
+
+<Warning>
+TUM-VI evaluation measures **end-point drift** rather than full trajectory error due to limited ground truth coverage.
+</Warning>
+
+### TUM-VI Evaluation Example
+
+```bash
+# Run on TUM-VI dataset
+./Examples/Stereo-Inertial/stereo_inertial_tum_vi \
+    Vocabulary/ORBvoc.txt \
+    Examples/Stereo-Inertial/TUM-VI.yaml \
+    /path/to/TUM-VI/dataset-room1_512_16 \
+    Examples/Stereo-Inertial/TUM_TimeStamps/dataset-room1_512.txt
+
+# Evaluate end-point error
+python evaluation/evaluate_ate_scale.py \
+    /path/to/TUM-VI/dataset-room1_512_16/dso/gt_imu.csv \
+    CameraTrajectory.txt
+```
+
+## Trajectory File Formats
+
+### TUM Format (ORB-SLAM3 Output)
+
+```
+# timestamp tx ty tz qx qy qz qw
+1403636579.763555527 0.0 0.0 0.0 0.0 0.0 0.0 1.0
+1403636579.813555527 0.001 -0.002 0.003 0.0 0.0 0.01 0.9999
+```
+
+<Accordion title="TUM Format Specification">
+
+**Columns**:
+1. `timestamp`: UNIX timestamp (seconds)
+2. `tx, ty, tz`: Translation vector (meters)
+3. `qx, qy, qz, qw`: Quaternion rotation (Hamilton convention)
+
+**Coordinate System**:
+- Camera frame for visual-only SLAM
+- IMU frame for visual-inertial SLAM
+
+</Accordion>
+
+### KITTI Format
+
+```
+# 3x4 projection matrix per line (no timestamps)
+r11 r12 r13 tx r21 r22 r23 ty r31 r32 r33 tz
+```
+
+<Note>
+ORB-SLAM3 outputs TUM format by default. Convert to KITTI format using external tools if needed.
+</Note>
+
+## Ground Truth Comparison
+
+### Visual Comparison
+
+Generate trajectory plots using the `--plot` option:
+
+```bash
+python evaluation/evaluate_ate_scale.py \
+    ground_truth.txt \
+    estimated_trajectory.txt \
+    --plot comparison.pdf
+```
+
+<Accordion title="Plot Interpretation">
+
+The generated PDF shows:
+1. **Black line**: Ground truth trajectory
+2. **Blue line**: Estimated trajectory (aligned)
+3. **Red lines**: Point-wise errors between trajectories
+
+**What to look for**:
+- Large systematic offsets indicate alignment issues
+- Periodic errors suggest scale drift
+- Localized spikes indicate tracking failures
+
+</Accordion>
+
+### Saving Aligned Trajectories
+
+```bash
+python evaluation/evaluate_ate_scale.py \
+    ground_truth.txt \
+    estimated_trajectory.txt \
+    --save aligned_trajectory.txt \
+    --save_associations matched_pairs.txt
+```
+
+**Output Files**:
+- `aligned_trajectory.txt`: Estimated trajectory after SE(3) + scale alignment
+- `matched_pairs.txt`: Associated ground truth and estimated poses
+
+## Python Evaluation Tools
+
+### Requirements
+
+From README.md:71-72:
+> Required to calculate the alignment of the trajectory with the ground truth. **Required Numpy module**.
+
+```bash
+# Install dependencies
+pip install numpy matplotlib
+
+# For advanced evaluation
+pip install evo  # Trajectory evaluation toolbox
+```
+
+### Custom Evaluation Script
+
+<Accordion title="Example: Batch Evaluation Script">
+
+```python
+import os
+import subprocess
+import numpy as np
+
+def evaluate_sequence(gt_file, est_file):
+    """Compute ATE for a single sequence."""
+    result = subprocess.run([
+        'python', 'evaluation/evaluate_ate_scale.py',
+        gt_file, est_file
+    ], capture_output=True, text=True)
+    
+    # Parse output: rmse, scale, rmse_gt
+    rmse, scale, rmse_gt = map(float, result.stdout.strip().split(','))
+    return {'rmse': rmse, 'scale': scale, 'rmse_gt': rmse_gt}
+
+# Evaluate multiple sequences
+sequences = ['MH01', 'MH02', 'MH03', 'MH04', 'MH05']
+results = []
+
+for seq in sequences:
+    gt = f'evaluation/Ground_truth/EuRoC_left_cam/{seq}_GT.txt'
+    est = f'results/{seq}_CameraTrajectory.txt'
+    
+    if os.path.exists(est):
+        result = evaluate_sequence(gt, est)
+        results.append(result)
+        print(f"{seq}: RMSE = {result['rmse']:.4f} m")
+
+# Compute statistics
+rmse_values = [r['rmse'] for r in results]
+print(f"\nMean RMSE: {np.mean(rmse_values):.4f} m")
+print(f"Median RMSE: {np.median(rmse_values):.4f} m")
+print(f"Std Dev: {np.std(rmse_values):.4f} m")
+```
+
+</Accordion>
+
+## Benchmark Datasets
+
+### EuRoC MAV Dataset
+
+**Characteristics**:
+- Stereo pinhole cameras (752×480 @ 20 Hz)
+- IMU data (200 Hz)
+- Accurate ground truth from motion capture
+- Indoor environments
+
+**Expected ATE** (Stereo-Inertial):
+- Easy sequences (MH01-MH03): < 0.1 m RMSE
+- Medium sequences (V101-V103): 0.1-0.2 m RMSE
+- Difficult sequences (V201-V203): 0.2-0.5 m RMSE
+
+### TUM-VI Dataset
+
+**Characteristics**:
+- Fisheye stereo cameras (512×512 @ 20 Hz)
+- IMU data (200 Hz)
+- Limited ground truth (room start/end only)
+- Indoor and outdoor environments
+
+**Expected End-Point Error**:
+- Indoor sequences: < 0.5 m
+- Outdoor sequences: 0.5-1.5 m
+
+### KITTI Odometry Dataset
+
+**Characteristics**:
+- Stereo grayscale cameras (1241×376 @ 10 Hz)
+- GPS/IMU ground truth
+- Outdoor driving scenarios
+
+**Expected Translation Error**:
+- Easy sequences: < 1% of trajectory length
+- Difficult sequences: 1-3% of trajectory length
+
+## Troubleshooting Evaluation Issues
+
+<Accordion title="No Matching Timestamps">
+
+**Error**: "Couldn't find matching timestamp pairs"
+
+**Solutions**:
+1. Check timestamp format (should be in seconds, not nanoseconds)
+2. Increase `--max_difference` parameter (try 0.1 or 0.2)
+3. Verify both files use the same time reference
+4. Check for consistent timestamp ordering
+
+</Accordion>
+
+<Accordion title="Large Scale Errors">
+
+**Symptoms**: Scale factor much greater than 1.0 or much less than 1.0
+
+**Causes**:
+- Monocular SLAM has inherent scale ambiguity
+- Incorrect ground truth coordinate frame
+- Units mismatch (meters vs. millimeters)
+
+**Solutions**:
+1. Use stereo or visual-inertial for metric scale
+2. Verify ground truth transformation
+3. Check trajectory units consistency
+
+</Accordion>
+
+<Accordion title="High RMSE Despite Good Visual Tracking">
+
+**Possible Issues**:
+1. **Coordinate frame mismatch**: Using IMU GT with camera trajectory
+2. **Timestamp synchronization**: Check `--offset` parameter
+3. **Partial tracking loss**: Inspect trajectory continuity
+4. **Map scale drift**: Check if scale factor varies over time
+
+**Diagnosis**:
+```bash
+# Generate plot to visualize alignment
+python evaluation/evaluate_ate_scale.py \
+    ground_truth.txt estimated_trajectory.txt \
+    --plot diagnosis.pdf --verbose
+```
+
+</Accordion>
+
+## Best Practices
+
+1. **Use appropriate ground truth frame** (camera vs. IMU) for your SLAM mode
+2. **Verify timestamp synchronization** before evaluation
+3. **Generate visual plots** to inspect alignment quality
+4. **Report both ATE and RPE** for comprehensive evaluation
+5. **Include scale factor** in results for monocular systems
+6. **Evaluate multiple sequences** to assess robustness
+7. **Compare against published results** from the ORB-SLAM3 paper
+
+<Tip>
+For reproducible results, always specify the evaluation parameters (max_difference, offset) used.
+</Tip>

@@ -1,80 +1,302 @@
 ---
-title: "Quickstart"
-description: "Start building awesome documentation in minutes"
+title: Quick Start
+description: Get up and running with ORB-SLAM3 in minutes
 ---
 
-## Get started in three steps
+## Overview
 
-Get your documentation site running locally and make your first customization.
+This guide will help you run your first ORB-SLAM3 example. We'll use the monocular SLAM example with the TUM RGB-D dataset, which is one of the simplest configurations to get started.
 
-### Step 1: Set up your local environment
+<Info>
+  Before proceeding, make sure you have [installed ORB-SLAM3](/installation) and verified that the compilation was successful.
+</Info>
 
-<AccordionGroup>
-  <Accordion icon="copy" title="Clone your docs locally">
-    During the onboarding process, you created a GitHub repository with your docs content if you didn't already have one. You can find a link to this repository in your [dashboard](https://dashboard.mintlify.com).
+## Quick Start with TUM Dataset
+
+<Steps>
+  <Step title="Download a Dataset">
+    Download a sample sequence from the [TUM RGB-D dataset](https://vision.in.tum.de/data/datasets/rgbd-dataset):
     
-    To clone the repository locally so that you can make and preview changes to your docs, follow the [Cloning a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) guide in the GitHub docs.
-  </Accordion>
-  <Accordion icon="rectangle-terminal" title="Start the preview server">
-    1. Install the Mintlify CLI: `npm i -g mint`
-    2. Navigate to your docs directory and run: `mint dev`
-    3. Open `http://localhost:3000` to see your docs live!
+    ```bash
+    # Create a directory for datasets
+    mkdir -p ~/Datasets
+    cd ~/Datasets
     
-    <Tip>Your preview updates automatically as you edit files.</Tip>
-  </Accordion>
-</AccordionGroup>
-
-### Step 2: Deploy your changes
-
-<AccordionGroup>
-  <Accordion icon="github" title="Install our GitHub app">
-    Install the Mintlify GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app).
+    # Download a small sequence (freiburg1_xyz, ~154 MB)
+    wget https://vision.in.tum.de/rgbd/dataset/freiburg1/rgbd_dataset_freiburg1_xyz.tgz
     
-    Our GitHub app automatically deploys your changes to your docs site, so you don't need to manage deployments yourself.
-</Accordion>
-<Accordion icon="palette" title="Update your site name and colors">
-    For a first change, let's update the name and colors of your docs site.
+    # Extract the dataset
+    tar -xvzf rgbd_dataset_freiburg1_xyz.tgz
+    ```
+    
+    This sequence contains 798 frames of a camera moving in x, y, and z directions.
+  </Step>
 
-    1. Open `docs.json` in your editor.
-    2. Change the `"name"` field to your project name.
-    3. Update the `"colors"` to match your brand.
-    4. Save and see your changes instantly at `http://localhost:3000`.
+  <Step title="Navigate to ORB-SLAM3 Directory">
+    Make sure you're in the ORB-SLAM3 root directory:
+    
+    ```bash
+    cd ~/ORB_SLAM3
+    ```
+  </Step>
 
-    <Tip>Try changing the primary color to see an immediate difference!</Tip>
-  </Accordion>
-</AccordionGroup>
+  <Step title="Run Monocular SLAM">
+    Execute the monocular SLAM example:
+    
+    ```bash
+    ./Examples/Monocular/mono_tum \
+        Vocabulary/ORBvoc.txt \
+        Examples/Monocular/TUM1.yaml \
+        ~/Datasets/rgbd_dataset_freiburg1_xyz
+    ```
+    
+    **Command breakdown:**
+    - `Vocabulary/ORBvoc.txt`: The ORB vocabulary for place recognition
+    - `Examples/Monocular/TUM1.yaml`: Camera calibration and SLAM parameters
+    - `~/Datasets/rgbd_dataset_freiburg1_xyz`: Path to the dataset
+  </Step>
 
-### Step 3: Go live
+  <Step title="View the Results">
+    You should see two windows:
+    
+    1. **ORB-SLAM3 Viewer**: 3D visualization showing:
+       - Green points: Current map points
+       - Red boxes: Keyframes
+       - Blue line: Current camera pose
+       - Camera trajectory in real-time
+    
+    2. **Frame Viewer**: Shows the current frame with:
+       - Tracked ORB features
+       - Current tracking state
+       - Number of tracked features
+    
+    <Note>
+      The system needs a few frames to initialize. Look for the message "System initialized" in the terminal.
+    </Note>
+  </Step>
+</Steps>
 
-<Accordion icon="rocket" title="Publish your docs">
-  1. Commit and push your changes.
-  2. Your docs will update and be live in moments!
-</Accordion>
+## Understanding the Output
 
-## Next steps
+During execution, ORB-SLAM3 will print status information:
 
-Now that you have your docs running, explore these key features:
+```
+Images in the sequence: 798
+-------
+Start processing sequence ...
 
-<CardGroup cols={2}>
+New Map created with 135 points
+System initialized
 
-<Card title="Write Content" icon="pen-to-square" href="/essentials/markdown">
-  Learn MDX syntax and start writing your documentation.
-</Card>
+Local Mapping: Active
+Loop Closing: Active
+```
 
-<Card title="Customize style" icon="palette" href="/essentials/settings">
-  Make your docs match your brand perfectly.
-</Card>
+After processing completes, you'll see performance statistics:
 
-<Card title="Add code examples" icon="square-code" href="/essentials/code">
-  Include syntax-highlighted code blocks.
-</Card>
+```
+-------
+median tracking time: 0.0342
+mean tracking time: 0.0389
+```
 
-<Card title="API documentation" icon="code" href="/api-reference/introduction">
-  Auto-generate API docs from OpenAPI specs.
-</Card>
+The camera trajectory is automatically saved to `KeyFrameTrajectory.txt` in TUM format.
 
-</CardGroup>
+## Understanding the System API
+
+Here's how the monocular example initializes and uses ORB-SLAM3 (from `Examples/Monocular/mono_tum.cc:50`):
+
+```cpp
+// Create SLAM system. It initializes all system threads and gets ready to process frames.
+ORB_SLAM3::System SLAM(argv[1], argv[2], ORB_SLAM3::System::MONOCULAR, true);
+
+// Main tracking loop
+for(int ni=0; ni<nImages; ni++)
+{
+    // Read image from file
+    cv::Mat im = cv::imread(image_path, cv::IMREAD_UNCHANGED);
+    double timestamp = vTimestamps[ni];
+    
+    // Pass the image to the SLAM system
+    SLAM.TrackMonocular(im, timestamp);
+}
+
+// Stop all threads
+SLAM.Shutdown();
+
+// Save camera trajectory
+SLAM.SaveKeyFrameTrajectoryTUM("KeyFrameTrajectory.txt");
+```
+
+### System Constructor
+
+The `System` constructor (from `include/System.h:105`) takes:
+
+```cpp
+System(const string &strVocFile,           // Path to vocabulary file
+       const string &strSettingsFile,      // Path to settings YAML file  
+       const eSensor sensor,               // Sensor type
+       const bool bUseViewer = true,       // Enable/disable viewer
+       const int initFr = 0,               // Initial frame number
+       const string &strSequence = std::string())  // Sequence name
+```
+
+### Sensor Types
+
+Available sensor types (from `include/System.h:87-94`):
+
+```cpp
+enum eSensor{
+    MONOCULAR=0,
+    STEREO=1,
+    RGBD=2,
+    IMU_MONOCULAR=3,
+    IMU_STEREO=4,
+    IMU_RGBD=5,
+};
+```
+
+### Tracking Methods
+
+Depending on your sensor configuration, use the appropriate tracking method:
+
+```cpp
+// Monocular (from include/System.h:121)
+Sophus::SE3f TrackMonocular(const cv::Mat &im, 
+                             const double &timestamp,
+                             const vector<IMU::Point>& vImuMeas = vector<IMU::Point>());
+
+// Stereo (from include/System.h:110)
+Sophus::SE3f TrackStereo(const cv::Mat &imLeft, 
+                         const cv::Mat &imRight, 
+                         const double &timestamp,
+                         const vector<IMU::Point>& vImuMeas = vector<IMU::Point>());
+
+// RGB-D (from include/System.h:116)
+Sophus::SE3f TrackRGBD(const cv::Mat &im, 
+                       const cv::Mat &depthmap, 
+                       const double &timestamp,
+                       const vector<IMU::Point>& vImuMeas = vector<IMU::Point>());
+```
+
+All tracking methods return the camera pose as a `Sophus::SE3f` transformation (empty if tracking fails).
+
+## Other Examples
+
+### Stereo SLAM (EuRoC Dataset)
+
+```bash
+# Download EuRoC dataset sequence
+wget http://robotics.ethz.ch/~asl-datasets/ijrr_euroc_mav_dataset/machine_hall/MH_01_easy/MH_01_easy.zip
+unzip MH_01_easy.zip -d ~/Datasets/EuRoC/MH01
+
+# Run stereo SLAM
+./Examples/Stereo/stereo_euroc \
+    Vocabulary/ORBvoc.txt \
+    Examples/Stereo/EuRoC.yaml \
+    ~/Datasets/EuRoC/MH01 \
+    Examples/Stereo/EuRoC_TimeStamps/MH01.txt
+```
+
+### RGB-D SLAM
+
+```bash
+# Using the same TUM dataset with depth
+./Examples/RGB-D/rgbd_tum \
+    Vocabulary/ORBvoc.txt \
+    Examples/RGB-D/TUM1.yaml \
+    ~/Datasets/rgbd_dataset_freiburg1_xyz \
+    Examples/RGB-D/associations/fr1_xyz.txt
+```
 
 <Note>
-  **Need help?** See our [full documentation](https://mintlify.com/docs) or join our [community](https://mintlify.com/community).
+  RGB-D examples require association files that pair RGB images with depth images. These are provided in `Examples/RGB-D/associations/`.
 </Note>
+
+## Using Your Own Camera
+
+To use ORB-SLAM3 with your own camera:
+
+<Steps>
+  <Step title="Calibrate Your Camera">
+    Follow the instructions in `Calibration_Tutorial.pdf` to calibrate your camera and create a YAML configuration file.
+  </Step>
+
+  <Step title="Modify an Example">
+    Copy and modify one of the provided examples (e.g., `Examples/Monocular/mono_tum.cc`) to read from your camera source instead of files.
+  </Step>
+
+  <Step title="Build Your Example">
+    Add your example to `CMakeLists.txt` and rebuild:
+    
+    ```bash
+    ./build.sh
+    ```
+  </Step>
+</Steps>
+
+For Intel RealSense cameras (T265, D435i), ready-to-use examples are provided in the Examples directory.
+
+## Performance Tips
+
+<AccordionGroup>
+  <Accordion title="Optimize for Real-Time Performance">
+    - Use a powerful computer (Intel i7 or equivalent)
+    - Reduce image resolution if needed (configure in YAML file)
+    - Disable the viewer for maximum performance: set the 4th parameter to `false` in the System constructor
+    - Compile in Release mode (default in `build.sh`)
+  </Accordion>
+
+  <Accordion title="Improve Tracking Robustness">
+    - Ensure good lighting conditions
+    - Avoid rapid camera movements during initialization
+    - Include visual texture in the scene (avoid blank walls)
+    - For IMU configurations, keep the camera-IMU synchronized
+  </Accordion>
+
+  <Accordion title="Debug Tracking Issues">
+    - Check the Frame Viewer for the number of tracked features (should be > 30)
+    - Look for "Tracking Lost" messages in the terminal
+    - Verify camera calibration is correct
+    - Enable verbose output by setting the verbosity level
+  </Accordion>
+</AccordionGroup>
+
+## Saving and Loading Results
+
+ORB-SLAM3 provides several methods to save trajectory data (from `include/System.h:143-168`):
+
+```cpp
+// Save in TUM RGB-D format (works for all sensor types)
+SLAM.SaveKeyFrameTrajectoryTUM("KeyFrameTrajectory.txt");
+
+// Save in EuRoC format
+SLAM.SaveTrajectoryEuRoC("CameraTrajectory.txt");
+SLAM.SaveKeyFrameTrajectoryEuRoC("KeyFrameTrajectory.txt");
+
+// Save in KITTI format (stereo and RGB-D only)
+SLAM.SaveTrajectoryKITTI("CameraTrajectory.txt");
+```
+
+<Warning>
+  Always call `SLAM.Shutdown()` before saving trajectories to ensure all threads have finished processing.
+</Warning>
+
+## Next Steps
+
+Now that you've run your first example, explore more advanced features:
+
+<CardGroup cols={2}>
+  <Card title="API Reference" icon="code" href="/api/system">
+    Learn about the complete System class API
+  </Card>
+  <Card title="Configuration" icon="gear" href="/guides/configuration">
+    Understand the YAML configuration files
+  </Card>
+  <Card title="Examples" icon="play" href="/examples">
+    Explore examples for all sensor configurations
+  </Card>
+  <Card title="Datasets" icon="database" href="/guides/datasets">
+    Download and use popular SLAM datasets
+  </Card>
+</CardGroup>

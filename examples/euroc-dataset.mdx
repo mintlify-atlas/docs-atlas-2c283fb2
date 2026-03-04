@@ -1,0 +1,356 @@
+---
+title: EuRoC Dataset Examples
+description: Running ORB-SLAM3 with the EuRoC MAV Visual-Inertial Dataset
+---
+
+The [EuRoC MAV dataset](http://projects.asl.ethz.ch/datasets/doku.php?id=kmavvisualinertialdatasets) was recorded with two pinhole cameras and an inertial sensor on a Micro Aerial Vehicle (MAV). ORB-SLAM3 provides examples to run all sensor configurations on this dataset.
+
+## Dataset Overview
+
+The EuRoC dataset provides:
+- **Two synchronized cameras** (stereo pinhole, 20 Hz)
+- **IMU measurements** (200 Hz gyroscope, 200 Hz accelerometer)
+- **Ground truth trajectories** (Vicon/Leica motion capture)
+- **11 sequences** with varying difficulty levels
+- **Indoor environment** (machine hall at ETH Zurich)
+
+### Sequence Categories
+
+<Tabs>
+  <Tab title="Easy">
+    - `MH_01_easy`
+    - `MH_02_easy`
+    - `V1_01_easy`
+    - `V2_01_easy`
+    
+    Slow motion, good lighting, rich texture.
+  </Tab>
+  
+  <Tab title="Medium">
+    - `MH_03_medium`
+    - `MH_04_difficult`
+    - `V1_02_medium`
+    - `V2_02_medium`
+    
+    Moderate speed and dynamics.
+  </Tab>
+  
+  <Tab title="Difficult">
+    - `MH_05_difficult`
+    - `V1_03_difficult`
+    - `V2_03_difficult`
+    
+    Fast motion, challenging lighting, motion blur.
+  </Tab>
+</Tabs>
+
+## Download Instructions
+
+<Steps>
+  <Step title="Visit the dataset website">
+    Download sequences from:
+    http://projects.asl.ethz.ch/datasets/doku.php?id=kmavvisualinertialdatasets
+  </Step>
+  
+  <Step title="Select ASL format">
+    Download sequences in **ASL Dataset Format** (not ROS bag format).
+  </Step>
+  
+  <Step title="Extract the data">
+    ```bash
+    unzip MH_01_easy.zip -d ~/Datasets/EuRoC/
+    ```
+    
+    Each sequence contains:
+    ```
+    MH_01_easy/
+    ├── mav0/
+    │   ├── cam0/
+    │   │   └── data/          # Left camera images
+    │   ├── cam1/
+    │   │   └── data/          # Right camera images
+    │   ├── imu0/
+    │   │   └── data.csv       # IMU measurements
+    │   └── state_groundtruth_estimate0/
+    │       └── data.csv       # Ground truth
+    ```
+  </Step>
+</Steps>
+
+## Running Monocular Examples
+
+Run monocular SLAM using only the left camera:
+
+```bash
+./Examples/Monocular/mono_euroc \
+    Vocabulary/ORBvoc.txt \
+    Examples/Monocular/EuRoC.yaml \
+    ~/Datasets/EuRoC/MH_01_easy \
+    Examples/Monocular/EuRoC_TimeStamps/MH01.txt
+```
+
+### Multiple Sequences
+
+Run multiple sequences sequentially with map reuse:
+
+```bash
+./Examples/Monocular/mono_euroc \
+    Vocabulary/ORBvoc.txt \
+    Examples/Monocular/EuRoC.yaml \
+    ~/Datasets/EuRoC/MH_01_easy \
+    Examples/Monocular/EuRoC_TimeStamps/MH01.txt \
+    ~/Datasets/EuRoC/MH_02_easy \
+    Examples/Monocular/EuRoC_TimeStamps/MH02.txt \
+    ~/Datasets/EuRoC/MH_03_medium \
+    Examples/Monocular/EuRoC_TimeStamps/MH03.txt
+```
+
+<Note>
+The system automatically saves sub-map trajectories and loads the atlas for subsequent sequences.
+</Note>
+
+## Running Stereo Examples
+
+Run stereo SLAM using both cameras:
+
+```bash
+./Examples/Stereo/stereo_euroc \
+    Vocabulary/ORBvoc.txt \
+    Examples/Stereo/EuRoC.yaml \
+    ~/Datasets/EuRoC/MH_01_easy \
+    Examples/Stereo/EuRoC_TimeStamps/MH01.txt
+```
+
+### Code Overview
+
+The stereo example (stereo_euroc.cc:132) passes both images to the SLAM system:
+
+```cpp
+// Load left and right images
+imLeft = cv::imread(vstrImageLeft[ni], cv::IMREAD_UNCHANGED);
+imRight = cv::imread(vstrImageRight[ni], cv::IMREAD_UNCHANGED);
+
+// Track stereo frame
+SLAM.TrackStereo(imLeft, imRight, timestamp);
+```
+
+<Note>
+The EuRoC.yaml file includes rectification matrices. The system will rectify images online if needed.
+</Note>
+
+## Running Monocular-Inertial Examples
+
+Fuse monocular vision with IMU data:
+
+```bash
+./Examples/Monocular-Inertial/mono_inertial_euroc \
+    Vocabulary/ORBvoc.txt \
+    Examples/Monocular-Inertial/EuRoC.yaml \
+    ~/Datasets/EuRoC/MH_01_easy \
+    Examples/Monocular-Inertial/EuRoC_TimeStamps/MH01.txt
+```
+
+### IMU Integration
+
+The inertial examples (mono_inertial_euroc.cc:180-184) collect IMU measurements between frames:
+
+```cpp
+// Load IMU measurements from previous frame
+vector<ORB_SLAM3::IMU::Point> vImuMeas;
+while(vTimestampsImu[first_imu] <= vTimestampsCam[ni]) {
+    vImuMeas.push_back(ORB_SLAM3::IMU::Point(
+        vAcc[first_imu].x, vAcc[first_imu].y, vAcc[first_imu].z,
+        vGyro[first_imu].x, vGyro[first_imu].y, vGyro[first_imu].z,
+        vTimestampsImu[first_imu]));
+    first_imu++;
+}
+
+// Track with IMU measurements
+SLAM.TrackMonocular(im, timestamp, vImuMeas);
+```
+
+## Running Stereo-Inertial Examples
+
+The most accurate configuration - stereo cameras with IMU:
+
+```bash
+./Examples/Stereo-Inertial/stereo_inertial_euroc \
+    Vocabulary/ORBvoc.txt \
+    Examples/Stereo-Inertial/EuRoC.yaml \
+    ~/Datasets/EuRoC/MH_01_easy \
+    Examples/Stereo-Inertial/EuRoC_TimeStamps/MH01.txt
+```
+
+This combines the benefits of:
+- **Stereo vision**: Accurate scale and depth estimation
+- **IMU**: Robust tracking during fast motion and feature-poor scenes
+- **Sensor fusion**: Highest accuracy and robustness
+
+## Running All Sequences
+
+Use the provided batch script:
+
+<Steps>
+  <Step title="Edit the script">
+    Open `euroc_examples.sh` and set the dataset path:
+    ```bash
+    pathDatasetEuroc="/home/user/Datasets/EuRoC" # Change this!
+    ```
+  </Step>
+  
+  <Step title="Make it executable">
+    ```bash
+    chmod +x euroc_examples.sh
+    ```
+  </Step>
+  
+  <Step title="Run all examples">
+    ```bash
+    ./euroc_examples.sh
+    ```
+    
+    This processes all 11 sequences with all sensor configurations.
+  </Step>
+</Steps>
+
+## Evaluation with Ground Truth
+
+EuRoC provides ground truth trajectories for quantitative evaluation.
+
+### Coordinate Frame Notes
+
+<Note>
+Ground truth is provided in the **IMU body reference frame**. Pure visual trajectories are in the **left camera reference frame**. The evaluation folder includes transformed ground truth for visual-only sequences.
+</Note>
+
+### Running Evaluation
+
+<Steps>
+  <Step title="Use the evaluation script">
+    ```bash
+    ./euroc_eval_examples.sh
+    ```
+  </Step>
+  
+  <Step title="Compute RMS ATE">
+    The script automatically:
+    - Runs each sequence
+    - Aligns estimated trajectory with ground truth
+    - Computes Root Mean Square Absolute Trajectory Error (RMS ATE)
+  </Step>
+  
+  <Step title="Review results">
+    Results are saved to trajectory files and displayed in the terminal:
+    ```
+    MH_01_easy: 0.023m RMS ATE
+    MH_02_easy: 0.019m RMS ATE
+    ...
+    ```
+  </Step>
+</Steps>
+
+### Manual Evaluation
+
+For custom evaluation:
+
+```bash
+python evaluation/evaluate_ate_scale.py \
+    ~/Datasets/EuRoC/MH_01_easy/mav0/state_groundtruth_estimate0/data.csv \
+    CameraTrajectory.txt \
+    --plot results.png
+```
+
+## Configuration Files
+
+EuRoC examples use pre-calibrated settings files:
+
+<Tabs>
+  <Tab title="Monocular">
+    `Examples/Monocular/EuRoC.yaml`
+    - Camera intrinsics (left camera)
+    - ORB extractor parameters
+    - Viewer settings
+  </Tab>
+  
+  <Tab title="Stereo">
+    `Examples/Stereo/EuRoC.yaml`
+    - Left and right camera intrinsics
+    - Stereo baseline
+    - Rectification matrices
+  </Tab>
+  
+  <Tab title="Monocular-Inertial">
+    `Examples/Monocular-Inertial/EuRoC.yaml`
+    - Camera intrinsics
+    - IMU intrinsics and noise parameters
+    - Camera-IMU extrinsics
+  </Tab>
+  
+  <Tab title="Stereo-Inertial">
+    `Examples/Stereo-Inertial/EuRoC.yaml`
+    - All stereo parameters
+    - IMU parameters
+    - Full sensor suite calibration
+  </Tab>
+</Tabs>
+
+## Expected Performance
+
+Typical results on EuRoC sequences:
+
+| Configuration | Accuracy | Robustness | Speed |
+|--------------|----------|------------|-------|
+| Monocular | Good | Moderate | Fast |
+| Stereo | Excellent | Good | Medium |
+| Monocular-Inertial | Excellent | Excellent | Fast |
+| Stereo-Inertial | Best | Best | Medium |
+
+<Note>
+Stereo-Inertial configuration provides the most accurate and robust results, typically achieving sub-centimeter accuracy on easy sequences.
+</Note>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Tracking Lost">
+    If tracking fails:
+    - Start with easier sequences (MH_01_easy, V1_01_easy)
+    - Ensure proper illumination
+    - Check that timestamp files match the sequence
+    - Verify camera calibration parameters
+  </Accordion>
+  
+  <Accordion title="Slow Performance">
+    To improve speed:
+    - Reduce `ORBextractor.nFeatures` in YAML
+    - Close the viewer window
+    - Use a more powerful computer
+  </Accordion>
+  
+  <Accordion title="IMU Not Working">
+    Common issues:
+    - Verify IMU noise parameters in YAML
+    - Check camera-IMU extrinsics
+    - Ensure sufficient IMU measurements before first frame
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="TUM-VI Dataset" icon="building" href="/examples/tum-vi-dataset">
+    Try examples with fisheye cameras
+  </Card>
+  
+  <Card title="Camera Configuration" icon="camera" href="/configuration/camera-settings">
+    Learn about camera calibration
+  </Card>
+  
+  <Card title="IMU Configuration" icon="compass" href="/configuration/imu-settings">
+    Configure IMU parameters
+  </Card>
+  
+  <Card title="Custom Datasets" icon="folder" href="/guides/custom-datasets">
+    Use your own data
+  </Card>
+</CardGroup>

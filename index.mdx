@@ -1,97 +1,392 @@
 ---
-title: "Introduction"
-description: "Welcome to the new home for your documentation"
+title: "ORB-SLAM3 Documentation"
+description: "An accurate open-source library for Visual, Visual-Inertial and Multi-Map SLAM"
+mode: "custom"
 ---
 
-## Setting up
+<div className="relative bg-gradient-to-br from-[#003366] via-[#2a73a7] to-[#1d8cc9] dark:from-[#0f1117] dark:via-[#1a1d27] dark:to-[#242838] py-20 overflow-hidden">
+  {/* Background overlay for better text contrast */}
+  <div className="absolute inset-0 bg-black/20 dark:bg-black/40"></div>
+  
+  <div className="relative max-w-6xl mx-auto px-6 lg:px-8">
+    <div className="grid lg:grid-cols-12 gap-8 items-center">
+      {/* Hero content */}
+      <div className="lg:col-span-7">
+        <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-white mb-6">
+          ORB-SLAM3 Documentation
+        </h1>
+        <p className="text-lg sm:text-xl text-white/90 dark:text-gray-200 max-w-2xl mb-8">
+          Learn how to integrate and use ORB-SLAM3, the first real-time SLAM library supporting Visual, Visual-Inertial and Multi-Map SLAM with monocular, stereo and RGB-D cameras.
+        </p>
+        
+        {/* CTA buttons */}
+        <div className="flex flex-wrap gap-4">
+          <a 
+            href="/quickstart"
+            className="inline-flex items-center px-6 py-3 rounded-lg bg-white text-[#2a73a7] font-semibold hover:bg-gray-100 transition-colors"
+          >
+            Get Started
+            <svg className="ml-2 w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+            </svg>
+          </a>
+          <a 
+            href="/api/system"
+            className="inline-flex items-center px-6 py-3 rounded-lg border-2 border-white/30 bg-white/10 text-white font-semibold hover:bg-white/20 hover:border-white/50 transition-colors"
+          >
+            API Reference
+          </a>
+        </div>
+      </div>
+      
+      {/* Hero visual element */}
+      <div className="lg:col-span-5 hidden lg:block">
+        <div className="relative">
+          <div className="absolute inset-0 bg-gradient-to-r from-[#2a73a7] to-[#b2cddf] rounded-2xl transform rotate-3 opacity-20"></div>
+          <div className="relative bg-white/10 dark:bg-black/20 backdrop-blur-sm rounded-2xl p-6 border border-white/20">
+            <div className="space-y-3">
+              <div className="h-3 bg-white/40 rounded w-3/4"></div>
+              <div className="h-3 bg-white/30 rounded w-full"></div>
+              <div className="h-3 bg-white/30 rounded w-5/6"></div>
+              <div className="mt-6 h-24 bg-gradient-to-br from-white/20 to-white/5 rounded-lg border border-white/10"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
 
-Get your documentation site up and running in minutes.
+{/* Quick Start Section */}
+<div className="mt-16 mb-16 max-w-5xl mx-auto px-6">
+  <h2 className="text-2xl sm:text-3xl font-semibold text-gray-900 dark:text-white mb-3">
+    Quick Start
+  </h2>
+  <p className="text-base text-gray-600 dark:text-gray-400 mb-8">
+    Get ORB-SLAM3 up and running in your project
+  </p>
+  
+  <Steps>
+    <Step title="Install Dependencies">
+      ORB-SLAM3 requires C++11, OpenCV (3.0+), Eigen3 (3.1.0+), and Pangolin for visualization.
+      
+      ```bash
+      sudo apt install libopencv-dev libeigen3-dev
+      ```
+    </Step>
+    
+    <Step title="Clone and Build">
+      Clone the repository and build the library along with third-party dependencies.
+      
+      ```bash
+      git clone https://github.com/UZ-SLAMLab/ORB_SLAM3.git ORB_SLAM3
+      cd ORB_SLAM3
+      chmod +x build.sh
+      ./build.sh
+      ```
+      
+      <Note>
+        This creates `libORB_SLAM3.so` in the `lib` folder and example executables in the `Examples` folder.
+      </Note>
+    </Step>
+    
+    <Step title="Run Your First Example">
+      Test the system with a sample dataset. Download an EuRoC sequence and run:
+      
+      ```bash
+      ./Examples/Stereo/stereo_euroc Vocabulary/ORBvoc.txt Examples/Stereo/EuRoC.yaml /path/to/sequence/mav0/cam0/data /path/to/sequence/mav0/cam1/data Examples/Stereo/EuRoC_TimeStamps/SEQUENCE.txt
+      ```
+    </Step>
+  </Steps>
+</div>
 
-<Card
-  title="Start here"
-  icon="rocket"
-  href="/quickstart"
-  horizontal
->
-  Follow our three step quickstart guide.
-</Card>
-
-## Make it yours
-
-Design a docs site that looks great and empowers your users.
-
-<Columns cols={2}>
-  <Card
-    title="Edit locally"
-    icon="pen-to-square"
-    href="/development"
-  >
-    Edit your docs locally and preview them in real time.
-  </Card>
-  <Card
-    title="Customize your site"
-    icon="palette"
-    href="/essentials/settings"
-  >
-    Customize the design and colors of your site to match your brand.
-  </Card>
+{/* Explore by Topic Section */}
+<div className="mt-16 mb-16 max-w-5xl mx-auto px-6">
+  <h2 className="text-2xl sm:text-3xl font-semibold text-gray-900 dark:text-white mb-3">
+    Explore by Topic
+  </h2>
+  <p className="text-base text-gray-600 dark:text-gray-400 mb-8">
+    Deep dive into ORB-SLAM3's capabilities
+  </p>
+  
+  <CardGroup cols={3}>
     <Card
-    title="Set up navigation"
-    icon="map"
-    href="/essentials/navigation"
-  >
-    Organize your docs to help users find what they need and succeed with your product.
-  </Card>
-  <Card
-    title="API documentation"
-    icon="terminal"
-    href="/api-reference/introduction"
-  >
-    Auto-generate API documentation from OpenAPI specifications.
-  </Card>
-</Columns>
+      title="Core Concepts"
+      icon="brain"
+      href="/concepts/slam-overview"
+    >
+      Understand SLAM fundamentals and ORB-SLAM3's architecture
+    </Card>
+    <Card
+      title="Sensor Modes"
+      icon="camera"
+      href="/concepts/sensor-modes"
+    >
+      Learn about monocular, stereo, RGB-D, and inertial configurations
+    </Card>
+    <Card
+      title="Camera Models"
+      icon="image"
+      href="/concepts/camera-models"
+    >
+      Work with pin-hole and fisheye lens models
+    </Card>
+    <Card
+      title="Configuration"
+      icon="sliders"
+      href="/guides/configuration"
+    >
+      Configure YAML settings for your camera and sensor setup
+    </Card>
+    <Card
+      title="Calibration"
+      icon="crosshairs"
+      href="/guides/calibration"
+    >
+      Calibrate your camera and IMU sensors
+    </Card>
+    <Card
+      title="ROS Integration"
+      icon="gears"
+      href="/guides/ros-integration"
+    >
+      Integrate ORB-SLAM3 with ROS for real-time robotics applications
+    </Card>
+  </CardGroup>
+</div>
 
-## Create beautiful pages
+{/* Examples Section */}
+<div className="mt-16 mb-16 max-w-5xl mx-auto px-6">
+  <h2 className="text-2xl sm:text-3xl font-semibold text-gray-900 dark:text-white mb-3">
+    Examples & Datasets
+  </h2>
+  <p className="text-base text-gray-600 dark:text-gray-400 mb-8">
+    Run ORB-SLAM3 with standard benchmarks and live cameras
+  </p>
+  
+  <CardGroup cols={2}>
+    <Card
+      title="EuRoC Dataset"
+      icon="chart-line"
+      href="/examples/euroc-dataset"
+    >
+      Visual-inertial sequences with ground truth trajectories
+    </Card>
+    <Card
+      title="TUM-VI Dataset"
+      icon="video"
+      href="/examples/tum-vi-dataset"
+    >
+      Fisheye camera sequences for challenging environments
+    </Card>
+    <Card
+      title="KITTI Dataset"
+      icon="car"
+      href="/examples/kitti-dataset"
+    >
+      Autonomous driving sequences with stereo cameras
+    </Card>
+    <Card
+      title="RealSense Cameras"
+      icon="camera-retro"
+      href="/examples/realsense-cameras"
+    >
+      Live SLAM with Intel RealSense D435i and T265
+    </Card>
+  </CardGroup>
+</div>
 
-Everything you need to create world-class documentation.
+{/* API Reference Section */}
+<div className="mt-16 mb-16 max-w-5xl mx-auto px-6">
+  <h2 className="text-2xl sm:text-3xl font-semibold text-gray-900 dark:text-white mb-3">
+    API Reference
+  </h2>
+  <p className="text-base text-gray-600 dark:text-gray-400 mb-8">
+    Complete reference for ORB-SLAM3 classes and methods
+  </p>
+  
+  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+    <a 
+      href="/api/system"
+      className="group block rounded-2xl border border-gray-200 dark:border-[#27272a] hover:border-[#2a73a7] dark:hover:border-[#2a73a7] overflow-hidden no-underline transition-colors bg-white dark:bg-[#1a1d27]"
+    >
+      <div className="p-6">
+        <div className="flex items-start justify-between mb-3">
+          <div className="p-2 rounded-lg bg-[#2a73a7]/10 dark:bg-[#2a73a7]/20">
+            <svg className="w-6 h-6 text-[#2a73a7]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
+            </svg>
+          </div>
+        </div>
+        <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-2">
+          System
+        </h3>
+        <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+          Main interface for initializing and running ORB-SLAM3 with different sensor configurations
+        </p>
+        <div className="flex items-center text-sm font-medium text-[#2a73a7] group-hover:text-[#1d8cc9]">
+          View documentation
+          <svg className="ml-1 w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+          </svg>
+        </div>
+      </div>
+    </a>
 
-<Columns cols={2}>
-  <Card
-    title="Write with MDX"
-    icon="pen-fancy"
-    href="/essentials/markdown"
-  >
-    Use MDX to style your docs pages.
-  </Card>
-  <Card
-    title="Code samples"
-    icon="code"
-    href="/essentials/code"
-  >
-    Add sample code to demonstrate how to use your product.
-  </Card>
-  <Card
-    title="Images"
-    icon="image"
-    href="/essentials/images"
-  >
-    Display images and other media.
-  </Card>
-  <Card
-    title="Reusable snippets"
-    icon="recycle"
-    href="/essentials/reusable-snippets"
-  >
-    Write once and reuse across your docs.
-  </Card>
-</Columns>
+    <a 
+      href="/api/tracking"
+      className="group block rounded-2xl border border-gray-200 dark:border-[#27272a] hover:border-[#2a73a7] dark:hover:border-[#2a73a7] overflow-hidden no-underline transition-colors bg-white dark:bg-[#1a1d27]"
+    >
+      <div className="p-6">
+        <div className="flex items-start justify-between mb-3">
+          <div className="p-2 rounded-lg bg-[#2a73a7]/10 dark:bg-[#2a73a7]/20">
+            <svg className="w-6 h-6 text-[#2a73a7]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+            </svg>
+          </div>
+        </div>
+        <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-2">
+          Tracking
+        </h3>
+        <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+          Camera pose estimation and feature tracking for real-time localization
+        </p>
+        <div className="flex items-center text-sm font-medium text-[#2a73a7] group-hover:text-[#1d8cc9]">
+          View documentation
+          <svg className="ml-1 w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+          </svg>
+        </div>
+      </div>
+    </a>
 
-## Need inspiration?
+    <a 
+      href="/api/atlas"
+      className="group block rounded-2xl border border-gray-200 dark:border-[#27272a] hover:border-[#2a73a7] dark:hover:border-[#2a73a7] overflow-hidden no-underline transition-colors bg-white dark:bg-[#1a1d27]"
+    >
+      <div className="p-6">
+        <div className="flex items-start justify-between mb-3">
+          <div className="p-2 rounded-lg bg-[#2a73a7]/10 dark:bg-[#2a73a7]/20">
+            <svg className="w-6 h-6 text-[#2a73a7]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
+            </svg>
+          </div>
+        </div>
+        <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-2">
+          Atlas
+        </h3>
+        <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+          Multi-map management system for seamless map fusion and switching
+        </p>
+        <div className="flex items-center text-sm font-medium text-[#2a73a7] group-hover:text-[#1d8cc9]">
+          View documentation
+          <svg className="ml-1 w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+          </svg>
+        </div>
+      </div>
+    </a>
 
-<Card
-  title="See complete examples"
-  icon="stars"
-  href="https://mintlify.com/customers"
->
-  Browse our showcase of exceptional documentation sites.
-</Card>
+    <a 
+      href="/api/imu-types"
+      className="group block rounded-2xl border border-gray-200 dark:border-[#27272a] hover:border-[#2a73a7] dark:hover:border-[#2a73a7] overflow-hidden no-underline transition-colors bg-white dark:bg-[#1a1d27]"
+    >
+      <div className="p-6">
+        <div className="flex items-start justify-between mb-3">
+          <div className="p-2 rounded-lg bg-[#2a73a7]/10 dark:bg-[#2a73a7]/20">
+            <svg className="w-6 h-6 text-[#2a73a7]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" />
+            </svg>
+          </div>
+        </div>
+        <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-2">
+          IMU Types
+        </h3>
+        <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+          Inertial measurement data structures and integration methods
+        </p>
+        <div className="flex items-center text-sm font-medium text-[#2a73a7] group-hover:text-[#1d8cc9]">
+          View documentation
+          <svg className="ml-1 w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+          </svg>
+        </div>
+      </div>
+    </a>
+  </div>
+</div>
+
+{/* Resources Section */}
+<div className="mt-16 mb-16 max-w-5xl mx-auto px-6">
+  <h2 className="text-2xl sm:text-3xl font-semibold text-gray-900 dark:text-white mb-3">
+    Resources
+  </h2>
+  <p className="text-base text-gray-600 dark:text-gray-400 mb-8">
+    Additional materials and community support
+  </p>
+  
+  <CardGroup cols={2}>
+    <Card
+      title="Research Paper"
+      icon="file-lines"
+      href="https://arxiv.org/abs/2007.11898"
+    >
+      Read the IEEE Transactions on Robotics paper describing ORB-SLAM3
+    </Card>
+    <Card
+      title="GitHub Repository"
+      icon="github"
+      href="https://github.com/UZ-SLAMLab/ORB_SLAM3"
+    >
+      Browse the source code, report issues, and contribute
+    </Card>
+    <Card
+      title="Calibration Tutorial"
+      icon="crosshairs"
+      href="/guides/calibration"
+    >
+      Detailed PDF guide for camera and IMU calibration
+    </Card>
+    <Card
+      title="Performance Analysis"
+      icon="chart-bar"
+      href="/advanced/evaluation"
+    >
+      Tools and methods for evaluating SLAM accuracy
+    </Card>
+  </CardGroup>
+</div>
+
+{/* Closing CTA */}
+<div className="mt-20 mb-16 max-w-5xl mx-auto px-6">
+  <div className="relative rounded-2xl bg-gradient-to-r from-[#2a73a7] to-[#1d8cc9] dark:from-[#1a1d27] dark:to-[#242838] border border-transparent dark:border-[#27272a] p-8 sm:p-12 overflow-hidden">
+    <div className="absolute top-0 right-0 -mt-4 -mr-4 w-64 h-64 bg-white/5 rounded-full blur-3xl"></div>
+    <div className="absolute bottom-0 left-0 -mb-4 -ml-4 w-64 h-64 bg-white/5 rounded-full blur-3xl"></div>
+    
+    <div className="relative text-center">
+      <h2 className="text-2xl sm:text-3xl font-bold text-white mb-4">
+        Ready to Get Started?
+      </h2>
+      <p className="text-lg text-white/90 dark:text-gray-300 max-w-2xl mx-auto mb-8">
+        Build accurate real-time SLAM applications with ORB-SLAM3's powerful visual and inertial tracking capabilities.
+      </p>
+      <div className="flex flex-col sm:flex-row gap-4 justify-center">
+        <a 
+          href="/installation"
+          className="inline-flex items-center justify-center px-6 py-3 rounded-lg bg-white text-[#2a73a7] font-semibold hover:bg-gray-100 transition-colors"
+        >
+          Install ORB-SLAM3
+          <svg className="ml-2 w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+          </svg>
+        </a>
+        <a 
+          href="/examples/overview"
+          className="inline-flex items-center justify-center px-6 py-3 rounded-lg border-2 border-white/30 bg-white/10 text-white font-semibold hover:bg-white/20 hover:border-white/50 transition-colors"
+        >
+          View Examples
+        </a>
+      </div>
+    </div>
+  </div>
+</div>

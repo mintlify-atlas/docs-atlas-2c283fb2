@@ -1,0 +1,534 @@
+---
+title: ROS Integration
+description: Building and running ORB-SLAM3 ROS nodes for real-time SLAM with monocular, stereo, RGB-D, and inertial sensors
+---
+
+ORB-SLAM3 provides ROS integration for processing live camera and IMU data. This guide covers building ROS nodes, configuration, and running with ROS bags or live sensors.
+
+## Overview
+
+ORB-SLAM3 ROS nodes support all sensor configurations:
+
+- **Mono**: Monocular camera
+- **Mono_Inertial**: Monocular camera with IMU
+- **Stereo**: Stereo camera pair
+- **Stereo_Inertial**: Stereo cameras with IMU
+- **RGBD**: RGB-D depth camera
+- **MonoAR**: Monocular with augmented reality demo
+
+<Info>
+ROS integration has been tested with **ROS Melodic** on **Ubuntu 18.04**. It should work with other ROS distributions with minimal modifications.
+</Info>
+
+## Building ROS Nodes
+
+### Prerequisites
+
+Before building ROS nodes:
+
+1. **Install ROS**: Follow instructions at [ros.org](http://www.ros.org/)
+2. **Build ORB-SLAM3**: Complete the [main build process](/guides/building) first
+3. **Source ROS**: `source /opt/ros/melodic/setup.bash`
+
+### Setup ROS Package Path
+
+<Steps>
+  <Step title="Add ORB-SLAM3 to ROS package path">
+    Edit your `~/.bashrc` file:
+    ```bash
+    gedit ~/.bashrc
+    ```
+  </Step>
+  
+  <Step title="Append the path">
+    Add this line at the end (replace `PATH` with your ORB-SLAM3 directory):
+    ```bash
+    export ROS_PACKAGE_PATH=${ROS_PACKAGE_PATH}:PATH/ORB_SLAM3/Examples_old/ROS
+    ```
+  </Step>
+  
+  <Step title="Source the updated bashrc">
+    ```bash
+    source ~/.bashrc
+    ```
+  </Step>
+</Steps>
+
+### Build the ROS Nodes
+
+Use the provided build script:
+
+```bash
+cd ORB_SLAM3
+chmod +x build_ros.sh
+./build_ros.sh
+```
+
+This script:
+- Navigates to `Examples_old/ROS/ORB_SLAM3`
+- Creates a build directory
+- Runs CMake with `ROS_BUILD_TYPE=Release`
+- Compiles all ROS nodes
+
+### Build Output
+
+After successful compilation, executables are created:
+
+```
+Examples_old/ROS/ORB_SLAM3/build/
+├── Mono                # Monocular node
+├── MonoAR              # Monocular AR demo
+├── Stereo              # Stereo node
+├── RGBD                # RGB-D node
+├── Mono_Inertial       # Monocular-Inertial node
+└── Stereo_Inertial     # Stereo-Inertial node
+```
+
+## ROS Node Types
+
+### Monocular Node
+
+Processes monocular camera images from `/camera/image_raw`:
+
+```bash
+rosrun ORB_SLAM3 Mono \
+  PATH_TO_VOCABULARY \
+  PATH_TO_SETTINGS_FILE
+```
+
+**Example**:
+```bash
+rosrun ORB_SLAM3 Mono \
+  Vocabulary/ORBvoc.txt \
+  Examples/Monocular/EuRoC.yaml
+```
+
+**Topics subscribed**:
+- `/camera/image_raw` (sensor_msgs/Image)
+
+### Monocular-Inertial Node
+
+Processes monocular images with IMU data:
+
+```bash
+rosrun ORB_SLAM3 Mono_Inertial \
+  PATH_TO_VOCABULARY \
+  PATH_TO_SETTINGS_FILE \
+  [EQUALIZATION]
+```
+
+**Example**:
+```bash
+rosrun ORB_SLAM3 Mono_Inertial \
+  Vocabulary/ORBvoc.txt \
+  Examples/Monocular-Inertial/EuRoC.yaml
+```
+
+**Topics subscribed**:
+- `/camera/image_raw` (sensor_msgs/Image)
+- `/imu` (sensor_msgs/Imu)
+
+**Optional argument**:
+- `EQUALIZATION`: Set to `true` to apply CLAHE histogram equalization (useful for TUM-VI dataset)
+
+<Tip>
+For challenging lighting conditions or low-contrast scenes, enable equalization:
+```bash
+rosrun ORB_SLAM3 Mono_Inertial Vocabulary/ORBvoc.txt config.yaml true
+```
+</Tip>
+
+### Stereo Node
+
+Processes stereo camera pair:
+
+```bash
+rosrun ORB_SLAM3 Stereo \
+  PATH_TO_VOCABULARY \
+  PATH_TO_SETTINGS_FILE \
+  ONLINE_RECTIFICATION
+```
+
+**Example**:
+```bash
+rosrun ORB_SLAM3 Stereo \
+  Vocabulary/ORBvoc.txt \
+  Examples/Stereo/EuRoC.yaml \
+  true
+```
+
+**Topics subscribed**:
+- `/camera/left/image_raw` (sensor_msgs/Image)
+- `/camera/right/image_raw` (sensor_msgs/Image)
+
+**Online rectification**:
+- `true`: Node rectifies images (provide rectification matrices in YAML)
+- `false`: Images must be pre-rectified
+- Not needed for fisheye cameras (works with original images)
+
+### Stereo-Inertial Node
+
+Processes stereo cameras with IMU:
+
+```bash
+rosrun ORB_SLAM3 Stereo_Inertial \
+  PATH_TO_VOCABULARY \
+  PATH_TO_SETTINGS_FILE \
+  ONLINE_RECTIFICATION \
+  [EQUALIZATION]
+```
+
+**Example**:
+```bash
+rosrun ORB_SLAM3 Stereo_Inertial \
+  Vocabulary/ORBvoc.txt \
+  Examples/Stereo-Inertial/EuRoC.yaml \
+  true
+```
+
+**Topics subscribed**:
+- `/camera/left/image_raw` (sensor_msgs/Image)
+- `/camera/right/image_raw` (sensor_msgs/Image)
+- `/imu` (sensor_msgs/Imu)
+
+### RGB-D Node
+
+Processes RGB-D depth camera:
+
+```bash
+rosrun ORB_SLAM3 RGBD \
+  PATH_TO_VOCABULARY \
+  PATH_TO_SETTINGS_FILE
+```
+
+**Example**:
+```bash
+rosrun ORB_SLAM3 RGBD \
+  Vocabulary/ORBvoc.txt \
+  Examples/RGB-D/TUM1.yaml
+```
+
+**Topics subscribed**:
+- `/camera/rgb/image_raw` (sensor_msgs/Image)
+- `/camera/depth_registered/image_raw` (sensor_msgs/Image)
+
+<Warning>
+Depth images must be registered (aligned) to the RGB frame. Configure `RGBD.DepthMapFactor` correctly in your YAML file.
+</Warning>
+
+## Topic Configuration
+
+By default, ROS nodes subscribe to standard topics. Remap topics when running with different camera drivers:
+
+### Topic Remapping
+
+```bash
+# Remap monocular topic
+rosrun ORB_SLAM3 Mono Vocabulary/ORBvoc.txt config.yaml \
+  /camera/image_raw:=/usb_cam/image_raw
+
+# Remap stereo topics
+rosrun ORB_SLAM3 Stereo Vocabulary/ORBvoc.txt config.yaml true \
+  /camera/left/image_raw:=/stereo/left/image_rect \
+  /camera/right/image_raw:=/stereo/right/image_rect
+
+# Remap IMU topic
+rosrun ORB_SLAM3 Mono_Inertial Vocabulary/ORBvoc.txt config.yaml \
+  /imu:=/mavros/imu/data
+```
+
+### Default Topic Names
+
+<CardGroup cols={2}>
+  <Card title="Monocular" icon="camera">
+    - `/camera/image_raw`
+  </Card>
+  
+  <Card title="Stereo" icon="images">
+    - `/camera/left/image_raw`
+    - `/camera/right/image_raw`
+  </Card>
+  
+  <Card title="RGB-D" icon="cube">
+    - `/camera/rgb/image_raw`
+    - `/camera/depth_registered/image_raw`
+  </Card>
+  
+  <Card title="IMU" icon="microchip">
+    - `/imu`
+  </Card>
+</CardGroup>
+
+## Running with ROS Bags
+
+Test ORB-SLAM3 with recorded ROS bags:
+
+### Complete Example: EuRoC Stereo-Inertial
+
+<Steps>
+  <Step title="Download EuRoC dataset">
+    ```bash
+    wget http://robotics.ethz.ch/~asl-datasets/ijrr_euroc_mav_dataset/\
+    machine_hall/MH_01_easy/MH_01_easy.bag
+    ```
+  </Step>
+  
+  <Step title="Start roscore">
+    In terminal 1:
+    ```bash
+    roscore
+    ```
+  </Step>
+  
+  <Step title="Launch ORB-SLAM3 node">
+    In terminal 2:
+    ```bash
+    rosrun ORB_SLAM3 Stereo_Inertial \
+      Vocabulary/ORBvoc.txt \
+      Examples/Stereo-Inertial/EuRoC.yaml \
+      true
+    ```
+  </Step>
+  
+  <Step title="Play the rosbag">
+    In terminal 3, wait for ORB-SLAM3 to load vocabulary, then:
+    ```bash
+    rosbag play --pause MH_01_easy.bag \
+      /cam0/image_raw:=/camera/left/image_raw \
+      /cam1/image_raw:=/camera/right/image_raw \
+      /imu0:=/imu
+    ```
+    
+    Press **space** to start playback.
+  </Step>
+</Steps>
+
+### Playback Tips
+
+<CodeGroup>
+```bash Standard Playback
+# Play at normal speed
+rosbag play dataset.bag
+```
+
+```bash Slower Playback
+# Play at half speed (useful for debugging)
+rosbag play -r 0.5 dataset.bag
+```
+
+```bash Looped Playback
+# Loop indefinitely
+rosbag play -l dataset.bag
+```
+
+```bash Start Paused
+# Start paused (press space to begin)
+rosbag play --pause dataset.bag
+```
+</CodeGroup>
+
+### TUM-VI Dataset Rebag Issue
+
+TUM-VI rosbags may have playback issues due to large chunk size:
+
+```bash
+# Rebag with default chunk size
+rosrun rosbag fastrebag.py \
+  dataset-room1_512_16.bag \
+  dataset-room1_512_16_small_chunks.bag
+```
+
+Then play the rebbagged file normally.
+
+## Running with Live Cameras
+
+### Using RealSense Cameras
+
+For Intel RealSense cameras, use the `realsense-ros` package:
+
+```bash
+# Install RealSense ROS wrapper
+sudo apt-get install ros-melodic-realsense2-camera
+
+# Launch RealSense node (D435i example)
+roslaunch realsense2_camera rs_camera.launch \
+  enable_gyro:=true \
+  enable_accel:=true \
+  unite_imu_method:=linear_interpolation
+
+# In another terminal, run ORB-SLAM3
+rosrun ORB_SLAM3 Stereo_Inertial \
+  Vocabulary/ORBvoc.txt \
+  Examples/Stereo-Inertial/RealSense_D435i.yaml \
+  false \
+  /camera/infra1/image_rect_raw:=/camera/left/image_raw \
+  /camera/infra2/image_rect_raw:=/camera/right/image_raw \
+  /camera/imu:=/imu
+```
+
+### USB Webcam
+
+For simple USB cameras:
+
+```bash
+# Install usb_cam package
+sudo apt-get install ros-melodic-usb-cam
+
+# Launch camera node
+rosrun usb_cam usb_cam_node
+
+# Run ORB-SLAM3 monocular
+rosrun ORB_SLAM3 Mono \
+  Vocabulary/ORBvoc.txt \
+  my_webcam_config.yaml \
+  /usb_cam/image_raw:=/camera/image_raw
+```
+
+## Troubleshooting
+
+<Accordion title="Node doesn't start: ROS_PACKAGE_PATH error">
+  **Cause**: ROS can't find ORB-SLAM3 package.
+  
+  **Solution**: 
+  ```bash
+  # Check ROS_PACKAGE_PATH
+  echo $ROS_PACKAGE_PATH
+  
+  # Should include: /path/to/ORB_SLAM3/Examples_old/ROS
+  
+  # If not, add to ~/.bashrc
+  export ROS_PACKAGE_PATH=${ROS_PACKAGE_PATH}:/path/to/ORB_SLAM3/Examples_old/ROS
+  source ~/.bashrc
+  ```
+</Accordion>
+
+<Accordion title="Vocabulary takes forever to load">
+  **Cause**: Text vocabulary file is slow to parse.
+  
+  **Solution**: Be patient (30-60 seconds). Consider converting to binary format for faster loading.
+  
+  ```bash
+  # Wait for this message before playing rosbag
+  # "ORB-SLAM3 System is ready."
+  ```
+</Accordion>
+
+<Accordion title="No images received">
+  **Cause**: Topic mismatch or message type incompatibility.
+  
+  **Solution**: 
+  ```bash
+  # List active topics
+  rostopic list
+  
+  # Check message type
+  rostopic info /camera/image_raw
+  
+  # Should be: sensor_msgs/Image
+  
+  # Monitor topic
+  rostopic hz /camera/image_raw
+  
+  # Use correct topic remapping
+  rosrun ORB_SLAM3 Mono vocab.txt config.yaml \
+    /camera/image_raw:=/your/actual/topic
+  ```
+</Accordion>
+
+<Accordion title="IMU initialization fails">
+  **Cause**: Insufficient IMU data, poor calibration, or timestamp issues.
+  
+  **Solution**:
+  - Ensure IMU publishing at correct frequency (check config: `IMU.Frequency`)
+  - Verify camera-IMU timestamps are synchronized
+  - Check IMU calibration parameters in YAML
+  - Provide sufficient motion during initialization (15-20 seconds)
+  
+  ```bash
+  # Check IMU topic
+  rostopic hz /imu
+  
+  # Should match IMU.Frequency in config (e.g., 200 Hz)
+  ```
+</Accordion>
+
+<Accordion title="Tracking lost immediately">
+  **Cause**: Incorrect camera calibration or configuration.
+  
+  **Solution**:
+  - Verify camera calibration parameters in YAML
+  - Check image resolution matches config (`Camera.width`, `Camera.height`)
+  - Ensure vocabulary file loaded correctly
+  - Test with lower ORB threshold (`ORBextractor.minThFAST: 5`)
+  - Verify sufficient visual texture in scene
+</Accordion>
+
+<Accordion title="Stereo depth inconsistent">
+  **Cause**: Stereo synchronization or rectification issues.
+  
+  **Solution**:
+  - Ensure stereo images are properly synchronized
+  - Check `Stereo.T_c1_c2` transformation is correct
+  - Verify baseline (`Stereo.ThDepth`) is appropriate
+  - For pinhole: Enable online rectification or pre-rectify images
+  
+  ```bash
+  # Check stereo synchronization
+  rosrun image_view stereo_view \
+    stereo:=/camera image:=image_raw
+  ```
+</Accordion>
+
+## Performance Optimization
+
+### Real-Time Performance Tips
+
+<Steps>
+  <Step title="Reduce ORB features">
+    Lower `ORBextractor.nFeatures` to 800-1000 for faster processing:
+    ```yaml
+    ORBextractor.nFeatures: 800
+    ```
+  </Step>
+  
+  <Step title="Disable viewer">
+    Run without visualization for maximum performance:
+    ```cpp
+    // Modify ROS node or build with viewer disabled
+    System SLAM(argv[1], argv[2], System::STEREO, false);
+    ```
+  </Step>
+  
+  <Step title="CPU governor">
+    Set CPU to performance mode:
+    ```bash
+    sudo cpufreq-set -g performance
+    ```
+  </Step>
+  
+  <Step title="Message throttling">
+    Reduce camera framerate if needed:
+    ```bash
+    rosrun topic_tools throttle messages /camera/image_raw 15.0
+    ```
+  </Step>
+</Steps>
+
+## Saving Trajectory
+
+After running ORB-SLAM3, save the estimated trajectory:
+
+```bash
+# In the ORB-SLAM3 terminal, after shutdown
+# Trajectories are automatically saved to:
+ls -l KeyFrameTrajectory.txt
+ls -l CameraTrajectory.txt
+```
+
+Use these files for evaluation against ground truth.
+
+## Next Steps
+
+- [Map Saving and Loading](/guides/map-save-load) - Persist and reuse maps
+- [Configuration Guide](/guides/configuration) - Customize ROS node settings
+- [EuRoC Examples](/examples/euroc) - Test with benchmark datasets

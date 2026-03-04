@@ -1,0 +1,340 @@
+---
+title: ORBmatcher
+description: Feature matching strategies for ORB descriptors with projection and BoW search
+---
+
+## Overview
+
+The `ORBmatcher` class provides various strategies for matching ORB features between frames and keyframes. It supports projection-based matching, Bag-of-Words (BoW) matching, and Sim3-based matching for different SLAM tasks.
+
+**Header:** `include/ORBmatcher.h`
+
+## Constructor
+
+### ORBmatcher
+
+```cpp
+ORBmatcher(float nnratio=0.6, bool checkOri=true)
+```
+
+Creates a new ORB feature matcher.
+
+**Parameters:**
+- `nnratio` - Nearest neighbor ratio for Lowe's ratio test (default: 0.6)
+- `checkOri` - Whether to check feature orientation consistency (default: true)
+
+## Descriptor Distance
+
+### DescriptorDistance
+
+```cpp
+static int DescriptorDistance(const cv::Mat &a, const cv::Mat &b)
+```
+
+Computes the Hamming distance between two ORB descriptors.
+
+**Parameters:**
+- `a` - First ORB descriptor (256-bit binary)
+- `b` - Second ORB descriptor (256-bit binary)
+
+**Returns:** Hamming distance (number of differing bits)
+
+## Projection-Based Matching
+
+### SearchByProjection (Local Map)
+
+```cpp
+int SearchByProjection(Frame &F,
+                       const std::vector<MapPoint*> &vpMapPoints,
+                       const float th=3,
+                       const bool bFarPoints = false,
+                       const float thFarPoints = 50.0f)
+```
+
+Searches matches between frame keypoints and projected map points.
+
+**Parameters:**
+- `F` - Current frame
+- `vpMapPoints` - Vector of map points to project
+- `th` - Search radius threshold (default: 3)
+- `bFarPoints` - Whether to include far points (default: false)
+- `thFarPoints` - Distance threshold for far points (default: 50.0)
+
+**Returns:** Number of matches found
+
+**Used in:** Local map tracking
+
+### SearchByProjection (Previous Frame)
+
+```cpp
+int SearchByProjection(Frame &CurrentFrame,
+                       const Frame &LastFrame,
+                       const float th,
+                       const bool bMono)
+```
+
+Projects map points from the previous frame into the current frame.
+
+**Parameters:**
+- `CurrentFrame` - Current frame
+- `LastFrame` - Previous frame
+- `th` - Search radius threshold
+- `bMono` - Whether using monocular mode
+
+**Returns:** Number of matches found
+
+**Used in:** Frame-to-frame tracking
+
+### SearchByProjection (Relocalization)
+
+```cpp
+int SearchByProjection(Frame &CurrentFrame,
+                       KeyFrame* pKF,
+                       const std::set<MapPoint*> &sAlreadyFound,
+                       const float th,
+                       const int ORBdist)
+```
+
+Projects map points from a keyframe into the current frame.
+
+**Parameters:**
+- `CurrentFrame` - Current frame
+- `pKF` - Reference keyframe
+- `sAlreadyFound` - Set of already matched map points
+- `th` - Search radius threshold
+- `ORBdist` - Maximum descriptor distance
+
+**Returns:** Number of matches found
+
+**Used in:** Relocalization
+
+### SearchByProjection (Loop Detection)
+
+```cpp
+int SearchByProjection(KeyFrame* pKF,
+                       Sophus::Sim3<float> &Scw,
+                       const std::vector<MapPoint*> &vpPoints,
+                       std::vector<MapPoint*> &vpMatched,
+                       int th,
+                       float ratioHamming=1.0)
+```
+
+Projects map points using a Sim3 transformation.
+
+**Parameters:**
+- `pKF` - Target keyframe
+- `Scw` - Sim3 transformation (similarity transform)
+- `vpPoints` - Map points to project
+- `vpMatched` - Output matched map points
+- `th` - Search radius threshold
+- `ratioHamming` - Hamming distance ratio threshold (default: 1.0)
+
+**Returns:** Number of matches found
+
+**Used in:** Loop detection and place recognition
+
+## Bag-of-Words Matching
+
+### SearchByBoW (Frame)
+
+```cpp
+int SearchByBoW(KeyFrame *pKF,
+                Frame &F,
+                std::vector<MapPoint*> &vpMapPointMatches)
+```
+
+Matches features between a keyframe and frame using BoW acceleration.
+
+**Parameters:**
+- `pKF` - Reference keyframe
+- `F` - Current frame
+- `vpMapPointMatches` - Output vector of matched map points
+
+**Returns:** Number of matches found
+
+**Details:**
+- Constrains search to features in the same vocabulary node
+- Efficient matching for relocalization
+- Uses Bag-of-Words for candidate selection
+
+### SearchByBoW (KeyFrame)
+
+```cpp
+int SearchByBoW(KeyFrame *pKF1,
+                KeyFrame* pKF2,
+                std::vector<MapPoint*> &vpMatches12)
+```
+
+Matches features between two keyframes using BoW acceleration.
+
+**Parameters:**
+- `pKF1` - First keyframe
+- `pKF2` - Second keyframe
+- `vpMatches12` - Output vector of matched map points
+
+**Returns:** Number of matches found
+
+## Specialized Matching
+
+### SearchForInitialization
+
+```cpp
+int SearchForInitialization(Frame &F1,
+                            Frame &F2,
+                            std::vector<cv::Point2f> &vbPrevMatched,
+                            std::vector<int> &vnMatches12,
+                            int windowSize=10)
+```
+
+Matches features for monocular initialization.
+
+**Parameters:**
+- `F1` - First frame
+- `F2` - Second frame
+- `vbPrevMatched` - Previous matched points
+- `vnMatches12` - Output match indices
+- `windowSize` - Search window size (default: 10)
+
+**Returns:** Number of matches found
+
+### SearchForTriangulation
+
+```cpp
+int SearchForTriangulation(KeyFrame *pKF1,
+                           KeyFrame* pKF2,
+                           std::vector<pair<size_t, size_t>> &vMatchedPairs,
+                           const bool bOnlyStereo,
+                           const bool bCoarse = false)
+```
+
+Matches features for triangulating new map points with epipolar constraint.
+
+**Parameters:**
+- `pKF1` - First keyframe
+- `pKF2` - Second keyframe
+- `vMatchedPairs` - Output matched feature pairs
+- `bOnlyStereo` - Whether to only use stereo features
+- `bCoarse` - Whether to use coarse matching (default: false)
+
+**Returns:** Number of matches found
+
+### SearchBySim3
+
+```cpp
+int SearchBySim3(KeyFrame* pKF1,
+                 KeyFrame* pKF2,
+                 std::vector<MapPoint*> &vpMatches12,
+                 const Sophus::Sim3f &S12,
+                 const float th)
+```
+
+Matches map points between keyframes using a Sim3 transformation.
+
+**Parameters:**
+- `pKF1` - First keyframe
+- `pKF2` - Second keyframe
+- `vpMatches12` - Output matched map points
+- `S12` - Sim3 transformation from KF1 to KF2
+- `th` - Search radius threshold
+
+**Returns:** Number of matches found
+
+## Map Point Fusion
+
+### Fuse (Basic)
+
+```cpp
+int Fuse(KeyFrame* pKF,
+         const vector<MapPoint*> &vpMapPoints,
+         const float th=3.0,
+         const bool bRight = false)
+```
+
+Projects map points into a keyframe and fuses duplicates.
+
+**Parameters:**
+- `pKF` - Target keyframe
+- `vpMapPoints` - Map points to fuse
+- `th` - Search radius threshold (default: 3.0)
+- `bRight` - Whether using right camera (default: false)
+
+**Returns:** Number of fused map points
+
+### Fuse (Sim3)
+
+```cpp
+int Fuse(KeyFrame* pKF,
+         Sophus::Sim3f &Scw,
+         const std::vector<MapPoint*> &vpPoints,
+         float th,
+         vector<MapPoint*> &vpReplacePoint)
+```
+
+Projects map points using Sim3 transformation and fuses duplicates.
+
+**Parameters:**
+- `pKF` - Target keyframe
+- `Scw` - Sim3 camera-to-world transformation
+- `vpPoints` - Map points to fuse
+- `th` - Search radius threshold
+- `vpReplacePoint` - Output replacement map points
+
+**Returns:** Number of fused map points
+
+## Constants
+
+```cpp
+static const int TH_LOW;        // Low threshold
+static const int TH_HIGH;       // High threshold
+static const int HISTO_LENGTH;  // Orientation histogram length
+```
+
+## Usage Example
+
+```cpp
+// Create matcher with default parameters
+ORBmatcher matcher(0.7, true);
+
+// Match features by projection
+std::vector<MapPoint*> vpLocalMapPoints = pMap->GetLocalMapPoints();
+int nMatches = matcher.SearchByProjection(currentFrame, vpLocalMapPoints, 3.0f);
+
+// Match using Bag-of-Words
+std::vector<MapPoint*> vpMatches;
+int nBoWMatches = matcher.SearchByBoW(pKF, currentFrame, vpMatches);
+
+// Compute descriptor distance
+cv::Mat desc1 = currentFrame.mDescriptors.row(0);
+cv::Mat desc2 = pKF->mDescriptors.row(5);
+int distance = ORBmatcher::DescriptorDistance(desc1, desc2);
+```
+
+## Matching Strategies
+
+### Projection-Based
+
+- Projects 3D map points into image space
+- Searches for matches in predicted locations
+- Fast for tracking known map points
+- Uses camera pose and point position
+
+### Bag-of-Words
+
+- Accelerates matching using vocabulary tree
+- Constrains search to same vocabulary node
+- Efficient for large-scale matching
+- Used in relocalization and loop detection
+
+### Epipolar Constraint
+
+- Enforces geometric consistency
+- Used for triangulation
+- Reduces outliers
+- Ensures 3D consistency
+
+## See Also
+
+- [ORBextractor](/api/orb-extractor) - Feature extraction
+- [Frame](/api/frame) - Frame representation
+- [KeyFrame](/api/keyframe) - Keyframe with map points
+- [MapPoint](/api/map-point) - 3D map points

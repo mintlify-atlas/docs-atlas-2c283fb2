@@ -1,0 +1,350 @@
+---
+title: 'KannalaBrandt8'
+description: 'Fisheye camera model for wide-angle and omnidirectional lenses'
+---
+
+## Overview
+
+`KannalaBrandt8` implements the Kannala-Brandt fisheye camera model with 8 parameters. This model accurately represents cameras with wide field-of-view, including fisheye and omnidirectional lenses.
+
+**Header:** `CameraModels/KannalaBrandt8.h`
+
+**Namespace:** `ORB_SLAM3`
+
+**Base Class:** [GeometricCamera](/api/geometric-camera)
+
+## Camera Parameters
+
+The Kannala-Brandt model uses 8 parameters:
+
+```cpp
+[fx, fy, cx, cy, k0, k1, k2, k3]
+```
+
+**Intrinsic parameters:**
+- `fx` - Focal length in x direction (pixels)
+- `fy` - Focal length in y direction (pixels)
+- `cx` - Principal point x coordinate (pixels)
+- `cy` - Principal point y coordinate (pixels)
+
+**Distortion coefficients:**
+- `k0, k1, k2, k3` - Radial distortion parameters for fisheye projection
+
+## Constructors
+
+```cpp
+KannalaBrandt8()
+```
+Default constructor with default precision (1e-6).
+
+```cpp
+KannalaBrandt8(const std::vector<float> _vParameters)
+```
+Construct with parameter vector (must have size 8).
+
+**Parameters:**
+- `_vParameters` - Vector `[fx, fy, cx, cy, k0, k1, k2, k3]`
+
+```cpp
+KannalaBrandt8(
+    const std::vector<float> _vParameters,
+    const float _precision
+)
+```
+Construct with custom precision for iterative unprojection.
+
+**Parameters:**
+- `_vParameters` - Camera parameters
+- `_precision` - Convergence precision for unprojection (default: 1e-6)
+
+```cpp
+KannalaBrandt8(KannalaBrandt8 *pKannala)
+```
+Copy constructor.
+
+**Parameters:**
+- `pKannala` - Source fisheye camera
+
+## Projection Methods
+
+Project 3D points to 2D using fisheye projection model.
+
+```cpp
+cv::Point2f project(const cv::Point3f &p3D)
+```
+
+```cpp
+Eigen::Vector2d project(const Eigen::Vector3d &v3D)
+```
+
+```cpp
+Eigen::Vector2f project(const Eigen::Vector3f &v3D)
+```
+
+```cpp
+Eigen::Vector2f projectMat(const cv::Point3f &p3D)
+```
+
+**Parameters:**
+- `p3D` / `v3D` - 3D point in camera coordinates
+
+**Returns:** 2D point in image coordinates (pixels)
+
+**Projection model:**
+```
+r = sqrt(X² + Y²)
+θ = atan(r/Z)
+θ_d = θ(1 + k0*θ² + k1*θ⁴ + k2*θ⁶ + k3*θ⁸)
+u = fx * θ_d * X/r + cx
+v = fy * θ_d * Y/r + cy
+```
+
+## Unprojection Methods
+
+Unproject 2D image points to 3D rays using iterative method.
+
+```cpp
+cv::Point3f unproject(const cv::Point2f &p2D)
+```
+
+```cpp
+Eigen::Vector3f unprojectEig(const cv::Point2f &p2D)
+```
+
+**Parameters:**
+- `p2D` - 2D point in image coordinates (pixels)
+
+**Returns:** 3D unit vector representing the ray direction
+
+**Note:** Unprojection uses Newton-Raphson iteration to invert the distortion model. Convergence is controlled by the `precision` parameter.
+
+## Jacobian
+
+```cpp
+Eigen::Matrix<double,2,3> projectJac(const Eigen::Vector3d &v3D)
+```
+
+Compute the Jacobian of the fisheye projection with respect to 3D point.
+
+**Parameters:**
+- `v3D` - 3D point in camera coordinates
+
+**Returns:** 2x3 Jacobian matrix ∂π/∂X
+
+## Uncertainty
+
+```cpp
+float uncertainty2(const Eigen::Matrix<double,2,1> &p2D)
+```
+
+Compute squared uncertainty for a 2D point.
+
+**Parameters:**
+- `p2D` - 2D point in image coordinates
+
+**Returns:** Uncertainty value
+
+## Calibration Matrix
+
+```cpp
+cv::Mat toK()
+```
+
+```cpp
+Eigen::Matrix3f toK_()
+```
+
+Return approximate intrinsic matrix (without distortion).
+
+**Returns:** 3x3 matrix:
+```
+[fx  0  cx]
+[ 0 fy  cy]
+[ 0  0   1]
+```
+
+**Note:** The full fisheye model cannot be represented by a single matrix K.
+
+## Two-View Reconstruction
+
+```cpp
+bool ReconstructWithTwoViews(
+    const std::vector<cv::KeyPoint> &vKeys1,
+    const std::vector<cv::KeyPoint> &vKeys2,
+    const std::vector<int> &vMatches12,
+    Sophus::SE3f &T21,
+    std::vector<cv::Point3f> &vP3D,
+    std::vector<bool> &vbTriangulated
+)
+```
+
+Reconstruct 3D points and pose from two fisheye views.
+
+**Parameters:**
+- `vKeys1` - Keypoints from first image
+- `vKeys2` - Keypoints from second image
+- `vMatches12` - Correspondences between views
+- `T21` - Output: relative transformation
+- `vP3D` - Output: triangulated 3D points
+- `vbTriangulated` - Output: success flags
+
+**Returns:** `true` if reconstruction successful
+
+## Epipolar Constraint
+
+```cpp
+bool epipolarConstrain(
+    GeometricCamera *pCamera2,
+    const cv::KeyPoint &kp1,
+    const cv::KeyPoint &kp2,
+    const Eigen::Matrix3f &R12,
+    const Eigen::Vector3f &t12,
+    const float sigmaLevel,
+    const float unc
+)
+```
+
+Verify epipolar constraint for fisheye cameras.
+
+**Parameters:**
+- `pCamera2` - Second camera model
+- `kp1` - Keypoint in first image
+- `kp2` - Keypoint in second image
+- `R12` - Rotation from camera 1 to 2
+- `t12` - Translation from camera 1 to 2
+- `sigmaLevel` - Uncertainty scale
+- `unc` - Uncertainty threshold
+
+**Returns:** `true` if constraint satisfied
+
+## Triangulation
+
+```cpp
+float TriangulateMatches(
+    GeometricCamera *pCamera2,
+    const cv::KeyPoint &kp1,
+    const cv::KeyPoint &kp2,
+    const Eigen::Matrix3f &R12,
+    const Eigen::Vector3f &t12,
+    const float sigmaLevel,
+    const float unc,
+    Eigen::Vector3f &p3D
+)
+```
+
+Triangulate a single match between two fisheye views.
+
+**Parameters:**
+- `pCamera2` - Second camera
+- `kp1`, `kp2` - Matched keypoints
+- `R12`, `t12` - Relative pose
+- `sigmaLevel`, `unc` - Uncertainty parameters
+- `p3D` - Output: triangulated 3D point
+
+**Returns:** Triangulation quality score
+
+## Match and Triangulate
+
+```cpp
+bool matchAndtriangulate(
+    const cv::KeyPoint &kp1,
+    const cv::KeyPoint &kp2,
+    GeometricCamera *pOther,
+    Sophus::SE3f &Tcw1,
+    Sophus::SE3f &Tcw2,
+    const float sigmaLevel1,
+    const float sigmaLevel2,
+    Eigen::Vector3f &x3Dtriangulated
+)
+```
+
+Match and triangulate keypoints from world coordinates.
+
+**Parameters:**
+- `kp1`, `kp2` - Keypoints to match
+- `pOther` - Other camera model
+- `Tcw1`, `Tcw2` - Camera poses (camera-to-world)
+- `sigmaLevel1`, `sigmaLevel2` - Uncertainty levels
+- `x3Dtriangulated` - Output: triangulated point
+
+**Returns:** `true` if successful
+
+## Overlapping Area
+
+```cpp
+std::vector<int> mvLappingArea
+```
+
+Defines the overlapping field-of-view between stereo fisheye cameras.
+
+**Usage:** Set by stereo initialization to optimize matching in overlapping regions.
+
+## Precision Control
+
+```cpp
+float GetPrecision()
+```
+
+Get the convergence precision for unprojection.
+
+**Returns:** Precision threshold (typically 1e-6)
+
+## Comparison
+
+```cpp
+bool IsEqual(GeometricCamera *pCam)
+```
+
+Check if another camera has identical parameters.
+
+**Parameters:**
+- `pCam` - Camera to compare
+
+**Returns:** `true` if all 8 parameters match
+
+## Stream Operators
+
+```cpp
+friend std::ostream& operator<<(std::ostream &os, const KannalaBrandt8 &kb)
+```
+Output fisheye parameters to stream.
+
+```cpp
+friend std::istream& operator>>(std::istream &is, KannalaBrandt8 &kb)
+```
+Read fisheye parameters from stream.
+
+## Usage Example
+
+```cpp
+// Create fisheye camera
+std::vector<float> params = {fx, fy, cx, cy, k0, k1, k2, k3};
+KannalaBrandt8* pFisheye = new KannalaBrandt8(params, 1e-6);
+
+// Project 3D point (handles wide angles)
+cv::Point3f point3D(1.0f, 0.5f, 0.8f);  // Can be wide-angle
+cv::Point2f point2D = pFisheye->project(point3D);
+
+// Unproject (iterative)
+cv::Point3f ray = pFisheye->unproject(point2D);
+
+// Check precision
+float precision = pFisheye->GetPrecision();
+```
+
+## Camera Type
+
+Kannala-Brandt cameras have type `CAM_FISHEYE` (value 1).
+
+## Implementation Notes
+
+- Unprojection is iterative and may be slower than pinhole
+- The model is accurate for FOV up to 180° and beyond
+- Used in stereo-fisheye and multi-camera configurations
+- Precision parameter controls unprojection accuracy vs. speed tradeoff
+
+## See Also
+
+- [GeometricCamera](/api/geometric-camera) - Base class interface
+- [Pinhole](/api/pinhole) - Standard camera model
+- [Settings](/api/settings) - Camera configuration

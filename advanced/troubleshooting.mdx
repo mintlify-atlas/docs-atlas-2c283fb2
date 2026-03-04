@@ -1,0 +1,824 @@
+---
+title: Troubleshooting
+description: Solutions to common issues when building and running ORB-SLAM3
+---
+
+This guide covers common problems encountered when building, configuring, and running ORB-SLAM3, with practical solutions.
+
+## Build Errors
+
+### Dependencies Not Found
+
+<Accordion title="OpenCV Not Found">
+
+**Error Message**:
+```
+CMake Error: Could not find OpenCV
+FATAL_ERROR: OpenCV > 4.4 not found.
+```
+
+**Solutions**:
+
+1. **Install OpenCV** (Ubuntu/Debian):
+   ```bash
+   sudo apt update
+   sudo apt install libopencv-dev
+   ```
+
+2. **Specify OpenCV path explicitly**:
+   ```bash
+   cmake .. -DOpenCV_DIR=/path/to/opencv/build
+   ```
+
+3. **Check OpenCV version**:
+   ```bash
+   pkg-config --modversion opencv4
+   ```
+   Required: OpenCV 3.2+ (tested with 3.2.0 and 4.4.0)
+
+4. **Build OpenCV from source** if version is too old:
+   ```bash
+   git clone https://github.com/opencv/opencv.git
+   cd opencv && mkdir build && cd build
+   cmake .. -DCMAKE_BUILD_TYPE=Release
+   make -j$(nproc)
+   sudo make install
+   ```
+
+</Accordion>
+
+<Accordion title="Eigen3 Not Found">
+
+**Error Message**:
+```
+Could NOT find Eigen3 (missing: EIGEN3_INCLUDE_DIR)
+```
+
+**Solutions**:
+
+1. **Install Eigen3**:
+   ```bash
+   sudo apt install libeigen3-dev
+   ```
+
+2. **Verify installation**:
+   ```bash
+   dpkg -L libeigen3-dev | grep eigen3.pc
+   ```
+
+3. **Manually specify Eigen path**:
+   ```bash
+   cmake .. -DEIGEN3_INCLUDE_DIR=/usr/include/eigen3
+   ```
+
+Required version: Eigen 3.1.0+
+
+</Accordion>
+
+<Accordion title="Pangolin Not Found">
+
+**Error Message**:
+```
+Could NOT find Pangolin
+```
+
+**Solutions**:
+
+1. **Install Pangolin dependencies**:
+   ```bash
+   sudo apt install libglew-dev libgl1-mesa-dev libglu1-mesa-dev
+   ```
+
+2. **Build Pangolin from source**:
+   ```bash
+   git clone https://github.com/stevenlovegrove/Pangolin.git
+   cd Pangolin
+   mkdir build && cd build
+   cmake ..
+   make -j$(nproc)
+   sudo make install
+   ```
+
+3. **Update library cache**:
+   ```bash
+   sudo ldconfig
+   ```
+
+</Accordion>
+
+### Third-Party Library Build Failures
+
+<Accordion title="DBoW2 Build Error">
+
+**Error**: DBoW2 compilation fails during `build.sh`
+
+**Solutions**:
+
+1. **Clean and rebuild**:
+   ```bash
+   cd Thirdparty/DBoW2/build
+   rm -rf *
+   cmake .. -DCMAKE_BUILD_TYPE=Release
+   make -j4
+   ```
+
+2. **Check for conflicting DBoW2 installations**:
+   ```bash
+   sudo apt remove ros-*-dbow2  # If using ROS
+   ```
+
+3. **Verify library is created**:
+   ```bash
+   ls -lh Thirdparty/DBoW2/lib/libDBoW2.so
+   ```
+
+</Accordion>
+
+<Accordion title="g2o Compilation Errors">
+
+**Error**: g2o fails to compile in Thirdparty/g2o
+
+**Solutions**:
+
+1. **Install missing dependencies**:
+   ```bash
+   sudo apt install libsuitesparse-dev qtdeclarative5-dev \
+                    qt5-qmake libqglviewer-dev-qt5
+   ```
+
+2. **Clean build directory**:
+   ```bash
+   cd Thirdparty/g2o/build
+   rm -rf *
+   cmake .. -DCMAKE_BUILD_TYPE=Release
+   make -j4
+   ```
+
+3. **Check Eigen version compatibility**:
+   g2o requires Eigen3 3.1.0+
+
+</Accordion>
+
+<Accordion title="Sophus Build Issues">
+
+**Error**: Sophus compilation fails
+
+**Solution**:
+
+1. **Ensure C++11 support**:
+   ```bash
+   g++ --version  # Should be GCC 4.8+
+   ```
+
+2. **Rebuild Sophus**:
+   ```bash
+   cd Thirdparty/Sophus/build
+   rm -rf *
+   cmake .. -DCMAKE_BUILD_TYPE=Release
+   make -j4
+   ```
+
+</Accordion>
+
+### Linking Errors
+
+<Accordion title="Undefined Reference Errors">
+
+**Error Message**:
+```
+undefined reference to `ORB_SLAM3::System::System(...)`
+```
+
+**Solutions**:
+
+1. **Verify library is built**:
+   ```bash
+   ls -lh lib/libORB_SLAM3.so
+   ```
+
+2. **Check library path**:
+   ```bash
+   export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/path/to/ORB_SLAM3/lib
+   sudo ldconfig
+   ```
+
+3. **Rebuild from scratch**:
+   ```bash
+   cd build
+   rm -rf *
+   cmake .. -DCMAKE_BUILD_TYPE=Release
+   make -j4
+   ```
+
+</Accordion>
+
+<Accordion title="Boost Serialization Not Found">
+
+**Error Message**:
+```
+cannot find -lboost_serialization
+```
+
+**Solution**:
+
+```bash
+# Install Boost serialization
+sudo apt install libboost-serialization-dev
+
+# Verify installation
+ldconfig -p | grep boost_serialization
+```
+
+</Accordion>
+
+### Python-Related Build Errors
+
+<Accordion title="Python Development Headers Missing">
+
+**Error Message**:
+```
+Python.h: No such file or directory
+```
+
+**Solutions**:
+
+1. **Install Python development package**:
+   ```bash
+   # For Python 2.7
+   sudo apt install libpython2.7-dev
+   
+   # For Python 3
+   sudo apt install libpython3-dev python3-numpy
+   ```
+
+2. **Verify NumPy installation**:
+   ```bash
+   python3 -c "import numpy; print(numpy.__version__)"
+   ```
+
+</Accordion>
+
+## Runtime Errors
+
+### Initialization Failures
+
+<Accordion title="Vocabulary Loading Error">
+
+**Error Message**:
+```
+Loading ORB Vocabulary. This could take a while...
+Segmentation fault (core dumped)
+```
+
+**Solutions**:
+
+1. **Extract vocabulary file**:
+   ```bash
+   cd Vocabulary
+   tar -xf ORBvoc.txt.tar.gz
+   ls -lh ORBvoc.txt  # Should be ~50MB
+   ```
+
+2. **Verify file path**:
+   ```bash
+   ./Examples/Stereo/stereo_euroc \
+       "$(pwd)/Vocabulary/ORBvoc.txt" \
+       Examples/Stereo/EuRoC.yaml \
+       /path/to/dataset
+   ```
+
+3. **Check available memory**:
+   ```bash
+   free -h  # Need at least 2GB free RAM
+   ```
+
+</Accordion>
+
+<Accordion title="Configuration File Error">
+
+**Error Message**:
+```
+Failed to open settings file at: config.yaml
+```
+
+**Solutions**:
+
+1. **Verify file exists**:
+   ```bash
+   ls -lh Examples/Stereo/EuRoC.yaml
+   ```
+
+2. **Check YAML syntax**:
+   ```bash
+   # Install yamllint
+   pip install yamllint
+   
+   # Validate syntax
+   yamllint Examples/Stereo/EuRoC.yaml
+   ```
+
+3. **Common YAML issues**:
+   - Tabs instead of spaces (use spaces only)
+   - Missing colons after parameter names
+   - Incorrect indentation
+
+</Accordion>
+
+<Accordion title="Camera Parameter Errors">
+
+**Error Message**:
+```
+Camera.fx required parameter does not exist, aborting...
+```
+
+**Solutions**:
+
+1. **Verify all required parameters are present**:
+   ```yaml
+   Camera.type: "PinHole"
+   Camera1.fx: 458.654
+   Camera1.fy: 457.296
+   Camera1.cx: 367.215
+   Camera1.cy: 248.375
+   Camera.width: 752
+   Camera.height: 480
+   ```
+
+2. **Check parameter names** (case-sensitive):
+   - Use `Camera1.fx`, not `camera1.fx`
+   - Use `ORBextractor.nFeatures`, not `ORBExtractor.nFeatures`
+
+3. **Validate camera model**:
+   ```yaml
+   Camera.type: "PinHole"     # Correct
+   # Camera.type: "Pinhole"  # Incorrect (wrong case)
+   ```
+
+</Accordion>
+
+### Tracking Lost Scenarios
+
+<Accordion title="Immediate Tracking Loss">
+
+**Symptoms**: "Tracking lost" on first or second frame
+
+**Causes & Solutions**:
+
+1. **Incorrect camera parameters**:
+   - Verify calibration is correct
+   - Check image resolution matches YAML
+   - Test with known-good configuration first
+
+2. **Insufficient features**:
+   ```yaml
+   # Increase feature count
+   ORBextractor.nFeatures: 1500
+   
+   # Reduce FAST threshold
+   ORBextractor.iniThFAST: 12
+   ORBextractor.minThFAST: 5
+   ```
+
+3. **Wrong sensor type**:
+   ```cpp
+   // Ensure sensor type matches your setup
+   ORB_SLAM3::System SLAM(vocab_file, config_file,
+       ORB_SLAM3::System::STEREO,  // Change as needed
+       true);
+   ```
+
+4. **Image format issues**:
+   ```cpp
+   // Ensure grayscale conversion
+   if (image.channels() == 3) {
+       cv::cvtColor(image, image, cv::COLOR_BGR2GRAY);
+   }
+   ```
+
+</Accordion>
+
+<Accordion title="Tracking Lost During Sequence">
+
+**Symptoms**: Tracking works initially but fails mid-sequence
+
+**Common Causes**:
+
+1. **Fast motion** / motion blur
+   - Reduce camera frame rate
+   - Increase exposure time
+   - Add motion blur compensation
+
+2. **Textureless scenes**:
+   - Lower FAST thresholds
+   - Ensure adequate lighting
+   - Add visual features to environment
+
+3. **Dynamic objects**:
+   - Large moving objects can confuse tracking
+   - Try to maintain static background in view
+
+4. **Loop closure confusion**:
+   - Temporarily disable loop closing:
+     ```cpp
+     // In LocalMapping or LoopClosing
+     mbStopGBA = true;  // For debugging
+     ```
+
+**Recovery**:
+- ORB-SLAM3 has automatic relocalization
+- Ensure sufficient features from previous map
+- Consider resetting if unrecoverable
+
+</Accordion>
+
+<Accordion title="Scale Drift (Monocular)">
+
+**Symptoms**: Map scale changes over time in monocular mode
+
+**Explanation**:
+- Monocular SLAM has inherent scale ambiguity
+- Scale drift is expected without IMU or stereo
+
+**Solutions**:
+
+1. **Use stereo or visual-inertial**:
+   - Provides metric scale
+   - Eliminates scale drift
+
+2. **Add known-scale constraints**:
+   - Implement custom scale constraints
+   - Use fiducial markers
+
+3. **Loop closure helps**:
+   - Scale correction on loop detection
+   - Maintain visual overlap in trajectory
+
+</Accordion>
+
+### IMU Integration Issues
+
+<Accordion title="IMU Initialization Fails">
+
+**Symptoms**: "IMU not initialized" or worse tracking than visual-only
+
+**Solutions**:
+
+1. **Verify IMU transformation**:
+   ```yaml
+   # T_b_c1: Transform from camera to IMU
+   # Must be accurately calibrated
+   IMU.T_b_c1: !!opencv-matrix
+     rows: 4
+     cols: 4
+     dt: f
+     data: [r11, r12, r13, tx,
+            r21, r22, r23, ty,
+            r31, r32, r33, tz,
+            0.0, 0.0, 0.0, 1.0]
+   ```
+
+2. **Check IMU noise parameters**:
+   - Use manufacturer specifications
+   - Or measure from static recording:
+     ```python
+     import numpy as np
+     gyro_noise = np.std(gyro_static)  # rad/s/√Hz
+     acc_noise = np.std(acc_static)    # m/s²/√Hz
+     ```
+
+3. **Verify IMU frequency**:
+   ```yaml
+   IMU.Frequency: 200.0  # Must match actual IMU rate
+   ```
+
+4. **Ensure sufficient motion**:
+   - IMU initialization requires motion
+   - Need acceleration and rotation
+   - Takes 2-3 seconds of dynamic motion
+
+</Accordion>
+
+<Accordion title="Time Synchronization Issues">
+
+**Symptoms**: IMU integration degrades performance
+
+**Solutions**:
+
+1. **Hardware synchronization**:
+   - Use hardware-synchronized camera-IMU
+   - RealSense D435i, T265 have built-in sync
+
+2. **Software synchronization**:
+   - Interpolate IMU measurements
+   - Use timestamp association
+
+3. **Check timestamp units**:
+   ```cpp
+   // Timestamps must be in SECONDS
+   double timestamp = timestamp_ns / 1e9;
+   SLAM.TrackStereo(imLeft, imRight, vImuMeas, timestamp);
+   ```
+
+</Accordion>
+
+## Performance Issues
+
+<Accordion title="Cannot Achieve Real-Time Performance">
+
+**Symptoms**: Processing slower than camera frame rate
+
+**Solutions**:
+
+1. **Reduce feature count**:
+   ```yaml
+   ORBextractor.nFeatures: 800  # From 1200
+   ORBextractor.nLevels: 6      # From 8
+   ```
+
+2. **Disable viewer**:
+   ```cpp
+   ORB_SLAM3::System SLAM(vocab_file, config_file,
+       sensor_type, false);  // Disable viewer
+   ```
+
+3. **Enable performance mode** (Linux):
+   ```bash
+   sudo cpupower frequency-set -g performance
+   ```
+
+4. **Profile with REGISTER_TIMES**:
+   ```cpp
+   // In include/Settings.h
+   #define REGISTER_TIMES
+   ```
+   Rebuild and check `ExecTimeMean.txt` for bottlenecks.
+
+5. **Reduce image resolution**:
+   ```cpp
+   cv::resize(image, image, cv::Size(640, 480));
+   // Update camera parameters accordingly
+   ```
+
+See [Performance Tuning](/advanced/performance-tuning) for detailed optimization.
+
+</Accordion>
+
+<Accordion title="High Memory Usage">
+
+**Symptoms**: RAM usage grows continuously or crashes with out-of-memory
+
+**Solutions**:
+
+1. **Reduce feature count**:
+   ```yaml
+   ORBextractor.nFeatures: 800
+   ```
+
+2. **Enable map point culling** (default, but verify):
+   - Check LocalMapping thread is running
+   - Culling should happen automatically
+
+3. **Limit keyframe count**:
+   - Modify LocalMapping parameters
+   - Implement periodic map saving/clearing
+
+4. **Monitor memory usage**:
+   ```bash
+   # While running ORB-SLAM3
+   watch -n 1 "ps aux | grep stereo_euroc"
+   ```
+
+</Accordion>
+
+## Debugging Tips
+
+### Enable Verbose Output
+
+```cpp
+// In your application, before creating System
+#include "System.h"
+
+// Set verbosity level
+ORB_SLAM3::Verbose::SetTh(ORB_SLAM3::Verbose::VERBOSITY_VERY_VERBOSE);
+
+// Levels:
+// VERBOSITY_QUIET = 0
+// VERBOSITY_NORMAL = 1
+// VERBOSITY_VERBOSE = 2
+// VERBOSITY_VERY_VERBOSE = 3
+// VERBOSITY_DEBUG = 4
+```
+
+### Use GDB for Segmentation Faults
+
+```bash
+# Compile with debug symbols
+cd build
+cmake .. -DCMAKE_BUILD_TYPE=Debug
+make -j4
+
+# Run with GDB
+gdb --args ./Examples/Stereo/stereo_euroc \
+    Vocabulary/ORBvoc.txt \
+    Examples/Stereo/EuRoC.yaml \
+    /path/to/dataset \
+    timestamps.txt
+
+# Inside GDB
+(gdb) run
+# When it crashes:
+(gdb) backtrace
+(gdb) frame 0
+(gdb) print variable_name
+```
+
+### Enable Time Profiling
+
+1. **Uncomment REGISTER_TIMES** (Settings.h:24):
+   ```cpp
+   #define REGISTER_TIMES
+   ```
+
+2. **Rebuild**:
+   ```bash
+   cd build && make -j4
+   ```
+
+3. **Run and check output**:
+   ```bash
+   ./Examples/Stereo/stereo_euroc ...
+   # After completion:
+   cat ExecTimeMean.txt
+   ```
+
+### Visualize Trajectory
+
+```python
+import numpy as np
+import matplotlib.pyplot as plt
+
+# Load trajectory
+data = np.loadtxt('CameraTrajectory.txt')
+timestamps = data[:, 0]
+positions = data[:, 1:4]
+
+# Plot top-down view
+plt.figure(figsize=(10, 10))
+plt.plot(positions[:, 0], positions[:, 1], 'b-', linewidth=2)
+plt.scatter(positions[0, 0], positions[0, 1], c='g', s=100, label='Start')
+plt.scatter(positions[-1, 0], positions[-1, 1], c='r', s=100, label='End')
+plt.xlabel('X (m)')
+plt.ylabel('Y (m)')
+plt.legend()
+plt.axis('equal')
+plt.grid()
+plt.savefig('trajectory.png')
+plt.show()
+```
+
+## Common Dataset-Specific Issues
+
+<Accordion title="EuRoC Dataset Issues">
+
+**Problem**: Cannot find images in dataset
+
+**Solution**:
+```bash
+# EuRoC structure:
+# MH01/mav0/cam0/data/*.png
+# MH01/mav0/cam1/data/*.png
+
+# Verify structure:
+ls /path/to/EuRoC/MH01/mav0/cam0/data/ | head
+
+# Check timestamps file:
+cat Examples/Stereo/EuRoC_TimeStamps/MH01.txt | head
+```
+
+**Problem**: Tracking fails immediately
+
+**Solution**:
+- Use provided EuRoC.yaml (tested configuration)
+- Verify image equalization is disabled (default)
+- Check stereo rectification parameters
+
+</Accordion>
+
+<Accordion title="TUM-VI Dataset Issues">
+
+**Problem**: Slow bag file playback
+
+**Solution** (from README.md:226-229):
+```bash
+# Rebag with smaller chunk size
+rosrun rosbag fastrebag.py \
+    dataset-room1_512_16.bag \
+    dataset-room1_512_16_small_chunks.bag
+```
+
+**Problem**: Fisheye image distortion
+
+**Solution**:
+- TUM-VI uses fisheye cameras
+- Use `Camera.type: "KannalaBrandt8"`
+- ORB-SLAM3 works with original distorted images
+
+</Accordion>
+
+<Accordion title="RealSense Camera Issues">
+
+**Problem**: RealSense examples not compiled
+
+**Solution**:
+```bash
+# Install RealSense SDK
+sudo apt-key adv --keyserver keyserver.ubuntu.com \
+    --recv-key F6E65AC044F831AC80A06380C8B3A55A6F3EFCDE
+
+sudo add-apt-repository \
+    "deb https://librealsense.intel.com/Debian/apt-repo \
+    $(lsb_release -sc) main"
+
+sudo apt update
+sudo apt install librealsense2-dev
+
+# Rebuild ORB-SLAM3
+cd build
+cmake ..
+make -j4
+```
+
+**Problem**: D435i camera not detected
+
+**Solution**:
+```bash
+# Test camera
+realsense-viewer
+
+# Check USB connection (needs USB 3.0)
+lsusb | grep Intel
+
+# Ensure user has permissions
+sudo usermod -aG video $USER
+# Log out and back in
+```
+
+</Accordion>
+
+## Getting Help
+
+<Warning>
+Before opening an issue, verify your problem is not covered in this troubleshooting guide.
+</Warning>
+
+### Information to Provide
+
+When seeking help, include:
+
+1. **System information**:
+   ```bash
+   uname -a
+   g++ --version
+   cmake --version
+   pkg-config --modversion opencv4
+   ```
+
+2. **Build output**:
+   - Full CMake configuration output
+   - Compilation errors (if any)
+
+3. **Runtime information**:
+   - Command used to run ORB-SLAM3
+   - YAML configuration file
+   - Console output (verbose mode)
+
+4. **Dataset details**:
+   - Dataset name and sequence
+   - Any preprocessing applied
+   - Timestamp format
+
+### Useful Resources
+
+- [ORB-SLAM3 GitHub Issues](https://github.com/UZ-SLAMLab/ORB_SLAM3/issues)
+- [ORB-SLAM3 Paper](https://arxiv.org/abs/2007.11898) (technical details)
+- README.md in repository root
+- Calibration_Tutorial.pdf for camera setup
+- [ROS Answers](https://answers.ros.org/) for ROS-related issues
+
+### Quick Fixes Checklist
+
+Before deep debugging, try:
+
+- [ ] Clean build: `rm -rf build && mkdir build && cd build && cmake .. && make -j4`
+- [ ] Verify vocabulary file extracted: `ls -lh Vocabulary/ORBvoc.txt`
+- [ ] Check dataset path is correct: `ls /path/to/dataset`
+- [ ] Use absolute paths for all file arguments
+- [ ] Test with provided example dataset (EuRoC MH01)
+- [ ] Disable viewer: set `bUseViewer = false`
+- [ ] Reduce feature count: `ORBextractor.nFeatures: 800`
+- [ ] Check RAM availability: `free -h` (need 2GB+ free)
+- [ ] Verify timestamp file format matches dataset
+
+<Tip>
+Most issues are caused by incorrect paths, missing dependencies, or configuration mismatches. Double-check basics first.
+</Tip>

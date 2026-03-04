@@ -1,0 +1,612 @@
+---
+title: Custom Camera Models
+description: Integrate custom camera models and calibrations with ORB-SLAM3
+---
+
+This guide explains how to add support for custom camera models and perform camera calibration for ORB-SLAM3.
+
+## Supported Camera Models
+
+ORB-SLAM3 natively supports two camera models (from CameraModels/ directory):
+
+<Accordion title="Built-in Camera Models">
+
+### 1. Pinhole Camera Model
+
+**Implementation**: `include/CameraModels/Pinhole.h`
+
+**Projection Model**:
+```
+u = fx * X/Z + cx
+v = fy * Y/Z + cy
+```
+
+**Distortion**: Supports OpenCV distortion model (radial + tangential)
+- `k1, k2`: Radial distortion coefficients
+- `p1, p2`: Tangential distortion coefficients
+- Optional: `k3` for severe distortion
+
+**Use Cases**:
+- Standard cameras
+- Narrow to medium FOV (< 110°)
+- Most webcams and industrial cameras
+
+### 2. Kannala-Brandt Fisheye Model
+
+**Implementation**: `include/CameraModels/KannalaBrandt8.h`
+
+**Projection Model**:
+```
+θ = atan(r / z)
+θd = θ(1 + k1*θ² + k2*θ⁴ + k3*θ⁶ + k4*θ⁸)
+u = fx * θd * x/r + cx
+v = fy * θd * y/r + cy
+```
+
+**Distortion**: 8-parameter model (k1, k2, k3, k4)
+
+**Use Cases**:
+- Wide-angle cameras (> 110° FOV)
+- Fisheye lenses (up to 180° FOV)
+- TUM-VI dataset cameras
+
+</Accordion>
+
+## Camera Calibration
+
+### Using Calibration_Tutorial.pdf
+
+From README.md:234-235:
+> You can find a tutorial for visual-inertial calibration and a detailed description of the contents of valid configuration files at `Calibration_Tutorial.pdf`
+
+<Note>
+The `Calibration_Tutorial.pdf` file is located in the repository root and provides comprehensive calibration instructions.
+</Note>
+
+### Calibration Methods
+
+<Accordion title="1. OpenCV Camera Calibration">
+
+For pinhole cameras, use OpenCV's calibration tools:
+
+```python
+import cv2
+import numpy as np
+import glob
+
+# Prepare checkerboard parameters
+pattern_size = (9, 6)  # Inner corners
+square_size = 0.025    # 25mm squares
+
+# Prepare object points
+objp = np.zeros((pattern_size[0] * pattern_size[1], 3), np.float32)
+objp[:, :2] = np.mgrid[0:pattern_size[0], 0:pattern_size[1]].T.reshape(-1, 2)
+objp *= square_size
+
+# Find corners in calibration images
+objpoints = []  # 3D points
+imgpoints = []  # 2D points
+
+images = glob.glob('calibration_images/*.jpg')
+
+for fname in images:
+    img = cv2.imread(fname)
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    
+    ret, corners = cv2.findChessboardCorners(gray, pattern_size, None)
+    
+    if ret:
+        objpoints.append(objp)
+        imgpoints.append(corners)
+
+# Calibrate camera
+ret, K, dist, rvecs, tvecs = cv2.calibrateCamera(
+    objpoints, imgpoints, gray.shape[::-1], None, None
+)
+
+print("Camera matrix (K):")
+print(K)
+print("\nDistortion coefficients:")
+print(dist)
+```
+
+</Accordion>
+
+<Accordion title="2. Kalibr for Visual-Inertial Calibration">
+
+[Kalibr](https://github.com/ethz-asl/kalibr) is recommended for camera-IMU calibration:
+
+```bash
+# Install Kalibr (Docker recommended)
+docker pull stereolabs/kalibr:kinetic
+
+# Run camera calibration
+kalibr_calibrate_cameras \
+    --bag calibration.bag \
+    --topics /cam0/image_raw /cam1/image_raw \
+    --models pinhole-radtan pinhole-radtan \
+    --target april_6x6.yaml
+
+# Run camera-IMU calibration
+kalibr_calibrate_imu_camera \
+    --bag dynamic_calibration.bag \
+    --cam camchain.yaml \
+    --imu imu.yaml \
+    --target april_6x6.yaml
+```
+
+**Output**: YAML files compatible with ORB-SLAM3
+
+</Accordion>
+
+<Accordion title="3. Fisheye Camera Calibration">
+
+For wide-angle/fisheye cameras:
+
+```python
+import cv2
+import numpy as np
+
+# Use OpenCV fisheye module
+ret, K, D, rvecs, tvecs = cv2.fisheye.calibrate(
+    objpoints, imgpoints, gray.shape[::-1],
+    None, None,
+    flags=cv2.fisheye.CALIB_RECOMPUTE_EXTRINSIC
+)
+
+print("Camera matrix (K):")
+print(K)
+print("\nFisheye distortion coefficients (D):")
+print(D)
+```
+
+For Kannala-Brandt model, use Kalibr with `pinhole-equi` model.
+
+</Accordion>
+
+## YAML Configuration for Custom Cameras
+
+### Pinhole Camera Configuration
+
+Example from `Examples/Stereo-Inertial/EuRoC.yaml`:
+
+```yaml
+%YAML:1.0
+
+#--------------------------------------------------------------------------------------------
+# Camera Parameters
+#--------------------------------------------------------------------------------------------
+File.version: "1.0"
+
+Camera.type: "PinHole"
+
+# Camera calibration and distortion parameters (OpenCV)
+Camera1.fx: 458.654
+Camera1.fy: 457.296
+Camera1.cx: 367.215
+Camera1.cy: 248.375
+
+Camera1.k1: -0.28340811
+Camera1.k2: 0.07395907
+Camera1.p1: 0.00019359
+Camera1.p2: 1.76187114e-05
+
+Camera.width: 752
+Camera.height: 480
+
+# Camera frames per second
+Camera.fps: 20
+
+# Color order of the images (0: BGR, 1: RGB)
+Camera.RGB: 1
+```
+
+<Accordion title="Pinhole Parameters Explanation">
+
+**Intrinsic Parameters**:
+- `fx, fy`: Focal lengths in pixels
+- `cx, cy`: Principal point (optical center)
+- `width, height`: Image resolution
+
+**Distortion Parameters**:
+- `k1, k2`: Radial distortion
+- `p1, p2`: Tangential distortion
+- Optional `k3`: Third radial distortion term
+
+**Additional Settings**:
+- `fps`: Frame rate (for time-based processing)
+- `RGB`: Color order (0=BGR, 1=RGB)
+
+</Accordion>
+
+### Fisheye Camera Configuration
+
+Example structure for Kannala-Brandt model:
+
+```yaml
+%YAML:1.0
+
+File.version: "1.0"
+
+Camera.type: "KannalaBrandt8"
+
+# Camera calibration parameters
+Camera1.fx: 190.97847715128717
+Camera1.fy: 190.9733070521226
+Camera1.cx: 254.93170605935475
+Camera1.cy: 256.8974428996504
+
+# Fisheye distortion coefficients
+Camera1.k1: 0.0034823894022493434
+Camera1.k2: 0.0007150348452162257
+Camera1.k3: -0.0020532361418706202
+Camera1.k4: 0.00020293673591811182
+
+Camera.width: 512
+Camera.height: 512
+Camera.fps: 20
+Camera.RGB: 1
+```
+
+<Note>
+Kannala-Brandt uses 4 distortion parameters (k1-k4) instead of the radial-tangential model.
+</Note>
+
+### Stereo Camera Configuration
+
+For stereo setups, add the stereo baseline transformation:
+
+```yaml
+# Stereo baseline (meters)
+Stereo.ThDepth: 60.0
+
+# Transformation from Camera1 to Camera2
+Stereo.T_c1_c2: !!opencv-matrix
+  rows: 4
+  cols: 4
+  dt: f
+  data: [0.9999, -0.0023, -0.0003, 0.1100,
+         0.0023,  0.9999, -0.0141, -0.0002,
+         0.0004,  0.0141,  0.9999,  0.0009,
+         0.0,     0.0,     0.0,     1.0]
+```
+
+<Accordion title="Stereo Parameters Explanation">
+
+**Stereo.ThDepth**:
+- Close/far threshold (baseline times)
+- Typical values: 35-60 for standard baselines
+- Affects depth range and map point filtering
+
+**Stereo.T_c1_c2**:
+- 4×4 transformation matrix from left to right camera
+- First 3×3: Rotation matrix
+- Last column (first 3 rows): Translation vector (meters)
+- Must be accurately calibrated for metric scale
+
+</Accordion>
+
+## IMU Configuration for Visual-Inertial
+
+From `Examples/Stereo-Inertial/EuRoC.yaml`:
+
+```yaml
+# Transformation from camera 0 to body-frame (IMU)
+IMU.T_b_c1: !!opencv-matrix
+  rows: 4
+  cols: 4
+  dt: f
+  data: [0.0149, -0.9999,  0.0041, -0.0216,
+         0.9996,  0.0150,  0.0257, -0.0647,
+        -0.0258,  0.0038,  0.9997,  0.0098,
+         0.0,     0.0,     0.0,     1.0]
+
+# IMU noise (continuous-time)
+IMU.NoiseGyro: 1.7e-04    # rad/s/√Hz
+IMU.NoiseAcc: 2.0e-03      # m/s²/√Hz
+IMU.GyroWalk: 1.9393e-05   # rad/s²/√Hz
+IMU.AccWalk: 3.0e-03       # m/s³/√Hz
+IMU.Frequency: 200.0       # Hz
+```
+
+<Warning>
+Incorrect IMU calibration (especially T_b_c1) will cause immediate tracking failure in visual-inertial mode.
+</Warning>
+
+## Adding New Camera Models
+
+### Step 1: Implement Camera Model Class
+
+Create a new camera model inheriting from `GeometricCamera`:
+
+```cpp
+// include/CameraModels/MyCamera.h
+#ifndef MY_CAMERA_H
+#define MY_CAMERA_H
+
+#include "GeometricCamera.h"
+
+namespace ORB_SLAM3 {
+
+class MyCamera : public GeometricCamera {
+public:
+    MyCamera(const std::vector<float> &vParameters);
+    
+    // Project 3D point to image plane
+    cv::Point2f project(const cv::Point3f &p3D) override;
+    
+    // Unproject image point to 3D ray
+    cv::Point3f unproject(const cv::Point2f &p2D) override;
+    
+    // Jacobian of projection
+    cv::Mat projectJac(const cv::Point3f &p3D) override;
+    
+    // Check if point is in image bounds
+    bool isInImage(const cv::Point2f &p) const override;
+    
+private:
+    // Custom parameters
+    float fx_, fy_, cx_, cy_;
+    // Add your distortion parameters
+};
+
+} // namespace ORB_SLAM3
+
+#endif
+```
+
+### Step 2: Implement Camera Methods
+
+```cpp
+// src/CameraModels/MyCamera.cpp
+#include "CameraModels/MyCamera.h"
+
+namespace ORB_SLAM3 {
+
+MyCamera::MyCamera(const std::vector<float> &vParameters)
+    : GeometricCamera(vParameters) {
+    fx_ = vParameters[0];
+    fy_ = vParameters[1];
+    cx_ = vParameters[2];
+    cy_ = vParameters[3];
+    // Initialize other parameters
+}
+
+cv::Point2f MyCamera::project(const cv::Point3f &p3D) {
+    // Implement your projection model
+    float x = p3D.x / p3D.z;
+    float y = p3D.y / p3D.z;
+    
+    // Apply distortion model
+    // ...
+    
+    float u = fx_ * x + cx_;
+    float v = fy_ * y + cy_;
+    
+    return cv::Point2f(u, v);
+}
+
+cv::Point3f MyCamera::unproject(const cv::Point2f &p2D) {
+    // Implement inverse projection
+    float x = (p2D.x - cx_) / fx_;
+    float y = (p2D.y - cy_) / fy_;
+    
+    // Apply inverse distortion
+    // ...
+    
+    return cv::Point3f(x, y, 1.0f);
+}
+
+// Implement other required methods...
+
+} // namespace ORB_SLAM3
+```
+
+### Step 3: Register Camera Model
+
+Add your camera model to the Settings class:
+
+```cpp
+// In src/Settings.cc, modify readCamera1() method
+void Settings::readCamera1(cv::FileStorage& fSettings) {
+    string cameraModel = readParameter<string>(fSettings, "Camera.type", found);
+    
+    if (cameraModel == "PinHole") {
+        calibration1_ = new Pinhole(vParameters);
+    } else if (cameraModel == "KannalaBrandt8") {
+        calibration1_ = new KannalaBrandt8(vParameters);
+    } else if (cameraModel == "MyCamera") {
+        calibration1_ = new MyCamera(vParameters);
+    } else {
+        cerr << "Unknown camera model: " << cameraModel << endl;
+        exit(-1);
+    }
+}
+```
+
+### Step 4: Update CMakeLists.txt
+
+Add your camera model to the build:
+
+```cmake
+add_library(${PROJECT_NAME} SHARED
+    # ... existing files ...
+    src/CameraModels/Pinhole.cpp
+    src/CameraModels/KannalaBrandt8.cpp
+    src/CameraModels/MyCamera.cpp  # Add this
+    # ...
+    include/CameraModels/MyCamera.h  # Add this
+)
+```
+
+### Step 5: Create YAML Configuration
+
+```yaml
+%YAML:1.0
+
+Camera.type: "MyCamera"
+
+# Your custom parameters
+Camera1.fx: 500.0
+Camera1.fy: 500.0
+Camera1.cx: 320.0
+Camera1.cy: 240.0
+# Add custom distortion parameters
+
+Camera.width: 640
+Camera.height: 480
+Camera.fps: 30
+Camera.RGB: 1
+```
+
+## Testing and Validation
+
+### 1. Test Projection/Unprojection
+
+<Accordion title="Unit Test Example">
+
+```cpp
+#include "CameraModels/MyCamera.h"
+#include <iostream>
+
+void testProjection() {
+    std::vector<float> params = {500.0, 500.0, 320.0, 240.0};
+    MyCamera camera(params);
+    
+    // Test projection
+    cv::Point3f p3D(1.0, 2.0, 5.0);
+    cv::Point2f p2D = camera.project(p3D);
+    
+    // Test unprojection
+    cv::Point3f p3D_recovered = camera.unproject(p2D);
+    
+    // Verify (should be proportional)
+    float scale = p3D.z / p3D_recovered.z;
+    std::cout << "Original: " << p3D << std::endl;
+    std::cout << "Recovered: " << p3D_recovered * scale << std::endl;
+}
+```
+
+</Accordion>
+
+### 2. Validate with Checkerboard
+
+Test your calibration by reprojecting checkerboard corners:
+
+```python
+# Compute reprojection error
+mean_error = 0
+for i in range(len(objpoints)):
+    imgpoints2, _ = cv2.projectPoints(objpoints[i], rvecs[i], tvecs[i], K, dist)
+    error = cv2.norm(imgpoints[i], imgpoints2, cv2.NORM_L2) / len(imgpoints2)
+    mean_error += error
+
+mean_error /= len(objpoints)
+print(f"Reprojection error: {mean_error:.4f} pixels")
+```
+
+<Tip>
+Good calibration: reprojection error < 0.5 pixels
+Acceptable: 0.5-1.0 pixels
+Poor: > 1.0 pixels
+</Tip>
+
+### 3. Test with ORB-SLAM3
+
+Run on a test sequence:
+
+```bash
+./Examples/Stereo/stereo_euroc \
+    Vocabulary/ORBvoc.txt \
+    my_custom_camera.yaml \
+    /path/to/test/sequence \
+    timestamps.txt
+```
+
+<Warning>
+If tracking immediately fails:
+1. Check projection/unprojection consistency
+2. Verify YAML parameter order
+3. Validate intrinsic parameters
+4. Test with rectified images first
+</Warning>
+
+## Common Issues and Solutions
+
+<Accordion title="Tracking Fails Immediately">
+
+**Symptoms**: No features detected or tracking lost on first frame
+
+**Solutions**:
+1. Verify camera intrinsics are in pixels, not normalized
+2. Check image resolution matches YAML configuration
+3. Test feature detection independently:
+   ```cpp
+   cv::Mat image = cv::imread("test.jpg", cv::IMREAD_GRAYSCALE);
+   std::vector<cv::KeyPoint> keypoints;
+   cv::FAST(image, keypoints, 20);
+   std::cout << "Detected: " << keypoints.size() << " features" << std::endl;
+   ```
+4. Ensure distortion coefficients are correct sign
+
+</Accordion>
+
+<Accordion title="Scale Drift in Stereo">
+
+**Symptoms**: Map scale changes over time
+
+**Causes**:
+- Incorrect stereo baseline
+- Poor stereo calibration
+- Wrong T_c1_c2 transformation
+
+**Solutions**:
+1. Recalibrate stereo cameras using checkerboard
+2. Verify baseline measurement (physical distance)
+3. Check stereo rectification quality
+4. Validate with known-size objects in the scene
+
+</Accordion>
+
+<Accordion title="IMU Integration Fails">
+
+**Symptoms**: Tracking worse with IMU than without
+
+**Causes**:
+- Wrong IMU.T_b_c1 transformation
+- Incorrect IMU noise parameters
+- Time synchronization issues
+
+**Solutions**:
+1. Use Kalibr for camera-IMU calibration
+2. Verify IMU orientation relative to camera
+3. Check timestamp synchronization (should be < 1ms offset)
+4. Validate IMU noise from static recording:
+   ```python
+   gyro_noise = np.std(gyro_static_data)
+   acc_noise = np.std(acc_static_data)
+   ```
+
+</Accordion>
+
+## Reference Documentation
+
+- **Calibration_Tutorial.pdf**: Comprehensive calibration guide (repository root)
+- **GeometricCamera.h**: Base camera class interface
+- **Pinhole.h / KannalaBrandt8.h**: Reference implementations
+- [OpenCV Calibration Tutorial](https://docs.opencv.org/4.x/dc/dbb/tutorial_py_calibration.html)
+- [Kalibr Documentation](https://github.com/ethz-asl/kalibr/wiki)
+
+## Best Practices
+
+1. **Use high-quality calibration images** (20-30 different poses)
+2. **Cover entire image area** during calibration
+3. **Validate reprojection error** (< 0.5 pixels)
+4. **Test with rectified images first** before implementing custom models
+5. **Implement unit tests** for projection/unprojection consistency
+6. **Document parameter units** clearly in YAML files
+7. **Version control calibration files** with datasets
+
+<Tip>
+For custom camera models, start by implementing and testing the pinhole model, then add distortion incrementally.
+</Tip>

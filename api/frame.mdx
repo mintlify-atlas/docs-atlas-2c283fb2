@@ -1,0 +1,357 @@
+---
+title: "Frame"
+description: "Frame data structure representing a single image with extracted features and pose information"
+---
+
+## Overview
+
+The `Frame` class represents a single image frame in ORB-SLAM3. It contains extracted ORB features, camera calibration, pose information, and IMU data for visual-inertial configurations. Frames serve as the fundamental unit for tracking and are converted to KeyFrames for mapping.
+
+```cpp
+namespace ORB_SLAM3 {
+    class Frame;
+}
+```
+
+Defined in: `Frame.h:53`
+
+## Key Features
+
+- ORB feature extraction and storage for monocular, stereo, and RGB-D cameras
+- Bag-of-Words representation for place recognition
+- Camera pose estimation (SE3 transformation)
+- IMU preintegration for visual-inertial SLAM
+- Stereo/depth matching and 3D point backprojection
+- Grid-based feature organization for efficient matching
+
+## Constructors
+
+### Monocular Camera
+
+```cpp
+Frame(const cv::Mat &imGray, const double &timeStamp, ORBextractor* extractor,
+      ORBVocabulary* voc, GeometricCamera* pCamera, cv::Mat &distCoef, 
+      const float &bf, const float &thDepth, Frame* pPrevF = NULL, 
+      const IMU::Calib &ImuCalib = IMU::Calib());
+```
+
+### Stereo Camera
+
+```cpp
+Frame(const cv::Mat &imLeft, const cv::Mat &imRight, const double &timeStamp, 
+      ORBextractor* extractorLeft, ORBextractor* extractorRight, 
+      ORBVocabulary* voc, cv::Mat &K, cv::Mat &distCoef, const float &bf, 
+      const float &thDepth, GeometricCamera* pCamera, Frame* pPrevF = NULL, 
+      const IMU::Calib &ImuCalib = IMU::Calib());
+```
+
+### RGB-D Camera
+
+```cpp
+Frame(const cv::Mat &imGray, const cv::Mat &imDepth, const double &timeStamp, 
+      ORBextractor* extractor, ORBVocabulary* voc, cv::Mat &K, cv::Mat &distCoef, 
+      const float &bf, const float &thDepth, GeometricCamera* pCamera, 
+      Frame* pPrevF = NULL, const IMU::Calib &ImuCalib = IMU::Calib());
+```
+
+## Feature Extraction
+
+### ExtractORB
+
+```cpp
+void ExtractORB(int flag, const cv::Mat &im, const int x0, const int x1);
+```
+
+Extracts ORB features from the image.
+
+**Parameters:**
+- `flag` - 0 for left image, 1 for right image
+- `im` - Input image
+- `x0`, `x1` - Horizontal bounds for extraction region
+
+### ComputeBoW
+
+```cpp
+void ComputeBoW();
+```
+
+Computes the Bag of Words representation for place recognition and loop closure detection.
+
+## Pose Management
+
+### SetPose
+
+```cpp
+void SetPose(const Sophus::SE3<float> &Tcw);
+```
+
+Sets the camera pose (transformation from world to camera). Updates rotation and translation matrices.
+
+### GetPose
+
+```cpp
+Sophus::SE3<float> GetPose() const;
+```
+
+Returns the camera pose as an SE3 transformation.
+
+### GetCameraCenter
+
+```cpp
+Eigen::Vector3f GetCameraCenter();
+```
+
+Returns the camera center in world coordinates.
+
+### GetRotationInverse
+
+```cpp
+Eigen::Matrix3f GetRotationInverse();
+```
+
+Returns the inverse rotation matrix (world to camera).
+
+## IMU Functions
+
+<Note>
+IMU functions are only relevant when using ORB-SLAM3 in visual-inertial mode.
+</Note>
+
+### SetVelocity
+
+```cpp
+void SetVelocity(Eigen::Vector3f Vw);
+```
+
+Sets the IMU velocity in world coordinates.
+
+### GetVelocity
+
+```cpp
+Eigen::Vector3f GetVelocity() const;
+```
+
+Returns the IMU velocity.
+
+### SetImuPoseVelocity
+
+```cpp
+void SetImuPoseVelocity(const Eigen::Matrix3f &Rwb, const Eigen::Vector3f &twb, 
+                        const Eigen::Vector3f &Vwb);
+```
+
+Sets IMU pose and velocity (implicitly changes camera pose).
+
+### GetImuPosition
+
+```cpp
+Eigen::Matrix<float,3,1> GetImuPosition() const;
+```
+
+Returns IMU position in world coordinates.
+
+## Stereo/Depth Operations
+
+### ComputeStereoMatches
+
+```cpp
+void ComputeStereoMatches();
+```
+
+Searches for matches between left and right images in stereo configuration. Computes depth for matched keypoints.
+
+### ComputeStereoFromRGBD
+
+```cpp
+void ComputeStereoFromRGBD(const cv::Mat &imDepth);
+```
+
+Associates depth information from RGB-D sensor to keypoints.
+
+### UnprojectStereo
+
+```cpp
+bool UnprojectStereo(const int &i, Eigen::Vector3f &x3D);
+```
+
+Backprojects a keypoint into 3D world coordinates if stereo/depth info is available.
+
+**Returns:** `true` if backprojection successful
+
+## Feature Search
+
+### GetFeaturesInArea
+
+```cpp
+vector<size_t> GetFeaturesInArea(const float &x, const float &y, const float &r, 
+                                  const int minLevel=-1, const int maxLevel=-1, 
+                                  const bool bRight = false) const;
+```
+
+Returns indices of keypoints within a circular region, optionally filtered by pyramid level.
+
+**Parameters:**
+- `x`, `y` - Center coordinates
+- `r` - Radius
+- `minLevel`, `maxLevel` - Scale pyramid level constraints
+- `bRight` - Search in right image (stereo only)
+
+### isInFrustum
+
+```cpp
+bool isInFrustum(MapPoint* pMP, float viewingCosLimit);
+```
+
+Checks if a MapPoint is in the camera frustum and computes projection variables.
+
+## Data Members
+
+### Feature Data
+
+```cpp
+// Number of keypoints
+int N;
+
+// Keypoints (original and undistorted)
+std::vector<cv::KeyPoint> mvKeys, mvKeysRight;
+std::vector<cv::KeyPoint> mvKeysUn;
+
+// ORB descriptors
+cv::Mat mDescriptors, mDescriptorsRight;
+
+// MapPoint associations
+std::vector<MapPoint*> mvpMapPoints;
+
+// Stereo coordinates and depth
+std::vector<float> mvuRight;
+std::vector<float> mvDepth;
+```
+
+### Bag of Words
+
+```cpp
+// BoW representation
+DBoW2::BowVector mBowVec;
+DBoW2::FeatureVector mFeatVec;
+ORBVocabulary* mpORBvocabulary;
+```
+
+### Camera Calibration
+
+```cpp
+// Calibration matrix
+cv::Mat mK;
+Eigen::Matrix3f mK_;
+
+// Focal lengths and principal point
+static float fx, fy, cx, cy;
+static float invfx, invfy;
+
+// Distortion coefficients
+cv::Mat mDistCoef;
+
+// Stereo baseline * fx
+float mbf;
+
+// Stereo baseline (meters)
+float mb;
+```
+
+### Pose Data
+
+```cpp
+// Camera pose (world to camera)
+Sophus::SE3<float> mTcw;
+
+// Rotation and translation components
+Eigen::Matrix<float,3,3> mRcw, mRwc;
+Eigen::Matrix<float,3,1> mtcw, mOw;
+
+// Pose validity flag
+bool mbHasPose;
+```
+
+### IMU Data
+
+```cpp
+// IMU velocity
+Eigen::Vector3f mVw;
+bool mbHasVelocity;
+
+// IMU bias and calibration
+IMU::Bias mImuBias;
+IMU::Calib mImuCalib;
+
+// Preintegrated IMU measurements
+IMU::Preintegrated* mpImuPreintegrated;
+IMU::Preintegrated* mpImuPreintegratedFrame;
+```
+
+### Frame Relationships
+
+```cpp
+// Frame identification
+static long unsigned int nNextId;
+long unsigned int mnId;
+double mTimeStamp;
+
+// Reference keyframe
+KeyFrame* mpReferenceKF;
+
+// Previous frame
+Frame* mpPrevFrame;
+
+// Last keyframe
+KeyFrame* mpLastKeyFrame;
+```
+
+### Feature Grid
+
+```cpp
+#define FRAME_GRID_ROWS 48
+#define FRAME_GRID_COLS 64
+
+// Grid for feature matching acceleration
+static float mfGridElementWidthInv;
+static float mfGridElementHeightInv;
+std::vector<std::size_t> mGrid[FRAME_GRID_COLS][FRAME_GRID_ROWS];
+```
+
+### ORB Pyramid
+
+```cpp
+// Scale pyramid parameters
+int mnScaleLevels;
+float mfScaleFactor;
+float mfLogScaleFactor;
+vector<float> mvScaleFactors;
+vector<float> mvInvScaleFactors;
+vector<float> mvLevelSigma2;
+vector<float> mvInvLevelSigma2;
+```
+
+## Usage Example
+
+```cpp
+// Create a monocular frame
+cv::Mat image = cv::imread("frame.jpg", cv::IMREAD_GRAYSCALE);
+Frame frame(image, timestamp, pORBextractor, pVocabulary, 
+            pCamera, distCoef, bf, depthThreshold);
+
+// Extract features
+frame.ComputeBoW();
+
+// Set pose from tracking
+Sophus::SE3f Tcw = ComputePose(frame);
+frame.SetPose(Tcw);
+
+// Get camera center
+Eigen::Vector3f camCenter = frame.GetCameraCenter();
+
+// Find features in region
+vector<size_t> indices = frame.GetFeaturesInArea(x, y, radius);
+```
+
+<Info>
+Frames are lightweight and created for every image. Only selected frames become KeyFrames for mapping and optimization.
+</Info>

@@ -1,0 +1,243 @@
+---
+title: 'GeometricCamera'
+description: 'Abstract base class for camera models in ORB-SLAM3'
+---
+
+## Overview
+
+`GeometricCamera` is the abstract base class that defines the common interface for all camera models in ORB-SLAM3. It provides virtual methods for projection, unprojection, and two-view reconstruction that must be implemented by derived camera models.
+
+**Header:** `CameraModels/GeometricCamera.h`
+
+**Namespace:** `ORB_SLAM3`
+
+## Camera Types
+
+The class defines two camera type constants:
+
+```cpp
+const static unsigned int CAM_PINHOLE = 0;
+const static unsigned int CAM_FISHEYE = 1;
+```
+
+## Constructors
+
+```cpp
+GeometricCamera()
+```
+Default constructor.
+
+```cpp
+GeometricCamera(const std::vector<float> &_vParameters)
+```
+Constructs a camera with given parameter vector.
+
+**Parameters:**
+- `_vParameters` - Vector of camera parameters (format depends on derived class)
+
+## Core Methods
+
+### Projection
+
+Project 3D points to 2D image coordinates.
+
+```cpp
+virtual cv::Point2f project(const cv::Point3f &p3D) = 0
+```
+
+```cpp
+virtual Eigen::Vector2d project(const Eigen::Vector3d &v3D) = 0
+```
+
+```cpp
+virtual Eigen::Vector2f project(const Eigen::Vector3f &v3D) = 0
+```
+
+```cpp
+virtual Eigen::Vector2f projectMat(const cv::Point3f &p3D) = 0
+```
+
+**Parameters:**
+- `p3D` / `v3D` - 3D point in camera coordinates
+
+**Returns:** 2D point in image coordinates (pixels)
+
+### Unprojection
+
+Unproject 2D image points to 3D rays.
+
+```cpp
+virtual cv::Point3f unproject(const cv::Point2f &p2D) = 0
+```
+
+```cpp
+virtual Eigen::Vector3f unprojectEig(const cv::Point2f &p2D) = 0
+```
+
+**Parameters:**
+- `p2D` - 2D point in image coordinates (pixels)
+
+**Returns:** 3D unit vector representing the ray direction
+
+### Jacobian
+
+```cpp
+virtual Eigen::Matrix<double,2,3> projectJac(const Eigen::Vector3d &v3D) = 0
+```
+
+Compute the Jacobian of the projection function.
+
+**Parameters:**
+- `v3D` - 3D point in camera coordinates
+
+**Returns:** 2x3 Jacobian matrix ∂π/∂X
+
+### Uncertainty
+
+```cpp
+virtual float uncertainty2(const Eigen::Matrix<double,2,1> &p2D) = 0
+```
+
+Compute the squared uncertainty of a 2D point.
+
+**Parameters:**
+- `p2D` - 2D point in image coordinates
+
+**Returns:** Uncertainty value
+
+## Calibration Matrix
+
+```cpp
+virtual cv::Mat toK() = 0
+```
+
+```cpp
+virtual Eigen::Matrix3f toK_() = 0
+```
+
+Return the camera calibration matrix K.
+
+**Returns:** 3x3 intrinsic calibration matrix
+
+## Two-View Reconstruction
+
+```cpp
+virtual bool ReconstructWithTwoViews(
+    const std::vector<cv::KeyPoint> &vKeys1,
+    const std::vector<cv::KeyPoint> &vKeys2,
+    const std::vector<int> &vMatches12,
+    Sophus::SE3f &T21,
+    std::vector<cv::Point3f> &vP3D,
+    std::vector<bool> &vbTriangulated
+) = 0
+```
+
+Reconstruct 3D points and relative pose from two views.
+
+**Parameters:**
+- `vKeys1` - Keypoints from first image
+- `vKeys2` - Keypoints from second image
+- `vMatches12` - Matches between views
+- `T21` - Output: relative pose from view 1 to view 2
+- `vP3D` - Output: triangulated 3D points
+- `vbTriangulated` - Output: flags indicating successful triangulation
+
+**Returns:** `true` if reconstruction successful
+
+## Epipolar Constraint
+
+```cpp
+virtual bool epipolarConstrain(
+    GeometricCamera *otherCamera,
+    const cv::KeyPoint &kp1,
+    const cv::KeyPoint &kp2,
+    const Eigen::Matrix3f &R12,
+    const Eigen::Vector3f &t12,
+    const float sigmaLevel,
+    const float unc
+) = 0
+```
+
+Check if two keypoints satisfy the epipolar constraint.
+
+**Parameters:**
+- `otherCamera` - Camera model for second view
+- `kp1` - Keypoint in first image
+- `kp2` - Keypoint in second image
+- `R12` - Rotation from camera 1 to camera 2
+- `t12` - Translation from camera 1 to camera 2
+- `sigmaLevel` - Sigma level for uncertainty
+- `unc` - Uncertainty threshold
+
+**Returns:** `true` if constraint satisfied
+
+## Match and Triangulate
+
+```cpp
+virtual bool matchAndtriangulate(
+    const cv::KeyPoint &kp1,
+    const cv::KeyPoint &kp2,
+    GeometricCamera *pOther,
+    Sophus::SE3f &Tcw1,
+    Sophus::SE3f &Tcw2,
+    const float sigmaLevel1,
+    const float sigmaLevel2,
+    Eigen::Vector3f &x3Dtriangulated
+) = 0
+```
+
+Match two keypoints and triangulate their 3D position.
+
+**Parameters:**
+- `kp1` - Keypoint in first image
+- `kp2` - Keypoint in second image  
+- `pOther` - Camera model for second view
+- `Tcw1` - Pose of first camera
+- `Tcw2` - Pose of second camera
+- `sigmaLevel1` - Sigma level for first keypoint
+- `sigmaLevel2` - Sigma level for second keypoint
+- `x3Dtriangulated` - Output: triangulated 3D point
+
+**Returns:** `true` if triangulation successful
+
+## Parameter Access
+
+```cpp
+float getParameter(const int i)
+```
+Get parameter at index i.
+
+```cpp
+void setParameter(const float p, const size_t i)
+```
+Set parameter at index i to value p.
+
+```cpp
+size_t size()
+```
+Get number of parameters.
+
+## Identification
+
+```cpp
+unsigned int GetId()
+```
+Get unique camera ID.
+
+```cpp
+unsigned int GetType()
+```
+Get camera type (CAM_PINHOLE or CAM_FISHEYE).
+
+## Derived Classes
+
+ORB-SLAM3 provides two implementations:
+
+- **[Pinhole](/api/pinhole)** - Standard pinhole camera model with radial-tangential distortion
+- **[KannalaBrandt8](/api/kannala-brandt)** - Fisheye camera model for wide-angle lenses
+
+## See Also
+
+- [Pinhole Camera](/api/pinhole)
+- [Kannala-Brandt Fisheye](/api/kannala-brandt)
+- [Settings](/api/settings)

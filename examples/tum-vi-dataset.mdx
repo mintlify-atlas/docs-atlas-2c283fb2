@@ -1,0 +1,429 @@
+---
+title: TUM-VI Dataset Examples
+description: Running ORB-SLAM3 with the TUM Visual-Inertial Dataset using fisheye cameras
+---
+
+The [TUM-VI dataset](https://vision.in.tum.de/data/datasets/visual-inertial-dataset) was recorded with two fisheye cameras and an inertial sensor. ORB-SLAM3 includes specialized examples for processing fisheye imagery from this dataset.
+
+## Dataset Overview
+
+The TUM-VI dataset provides:
+- **Two synchronized fisheye cameras** (stereo, 20 Hz)
+- **IMU measurements** (200 Hz gyroscope, 200 Hz accelerometer)
+- **Partial ground truth** (available in starting room)
+- **Indoor and outdoor sequences**
+- **Challenging scenarios** with lighting changes and fast motion
+
+### Key Features
+
+<CardGroup cols={2}>
+  <Card title="Fisheye Lenses" icon="circle">
+    Wide field-of-view cameras (190°) for better tracking in indoor environments.
+  </Card>
+  
+  <Card title="Varied Environments" icon="building">
+    Sequences recorded in rooms, corridors, and outdoor areas.
+  </Card>
+  
+  <Card title="Sliding Windows" icon="window-maximize">
+    Long sequences requiring multi-map capabilities.
+  </Card>
+  
+  <Card title="CLAHE Enhancement" icon="adjust">
+    Images benefit from histogram equalization for better feature extraction.
+  </Card>
+</CardGroup>
+
+## Download Instructions
+
+<Steps>
+  <Step title="Visit the dataset website">
+    Download sequences from:
+    https://vision.in.tum.de/data/datasets/visual-inertial-dataset
+  </Step>
+  
+  <Step title="Select sequences">
+    Available sequences:
+    - `dataset-room1_512_16` - Room with various motions
+    - `dataset-room2_512_16` - Different room
+    - `dataset-room3_512_16` - Third room
+    - `dataset-room4_512_16` - Fourth room
+    - `dataset-room5_512_16` - Fifth room
+    - `dataset-room6_512_16` - Sixth room
+    - `dataset-corridor1_512_16` - Corridor sequence
+    - `dataset-magistrale1_512_16` - Long corridor
+    - `dataset-outdoors1_512_16` - Outdoor sequence
+  </Step>
+  
+  <Step title="Extract the data">
+    ```bash
+    tar -xvzf dataset-room1_512_16.tar.gz -C ~/Datasets/TUM-VI/
+    ```
+    
+    Each sequence contains:
+    ```
+    dataset-room1_512_16/
+    ├── mav0/
+    │   ├── cam0/
+    │   │   └── data/          # Left fisheye camera
+    │   ├── cam1/
+    │   │   └── data/          # Right fisheye camera
+    │   ├── imu0/
+    │   │   └── data.csv       # IMU data
+    │   └── mocap/
+    │       └── data.csv       # Ground truth (partial)
+    ```
+  </Step>
+</Steps>
+
+## Fisheye Camera Model
+
+TUM-VI uses fisheye cameras with the **Kannala-Brandt camera model** (KB4).
+
+### Key Differences from Pinhole
+
+<Tabs>
+  <Tab title="Projection">
+    Fisheye uses radial distortion model:
+    ```
+    θ = atan(r / f)
+    θ_d = θ(1 + k1*θ² + k2*θ⁴ + k3*θ⁶ + k4*θ⁸)
+    ```
+    
+    This allows for wide-angle views (>180°).
+  </Tab>
+  
+  <Tab title="Advantages">
+    - Larger field of view
+    - Better tracking in confined spaces
+    - More features visible per frame
+    - Fewer tracking failures
+  </Tab>
+  
+  <Tab title="Configuration">
+    The YAML file must specify:
+    ```yaml
+    Camera.type: "KannalaBrandt8"
+    Camera.fx: 190.978
+    Camera.fy: 190.973
+    Camera.cx: 254.931
+    Camera.cy: 256.897
+    
+    # Fisheye distortion coefficients
+    Camera.k1: 0.0034
+    Camera.k2: 0.0007
+    Camera.k3: -0.0003
+    Camera.k4: 0.0
+    ```
+  </Tab>
+</Tabs>
+
+<Note>
+ORB-SLAM3 works directly with fisheye images - no rectification needed.
+</Note>
+
+## Running Monocular Examples
+
+Run monocular SLAM with a single fisheye camera:
+
+```bash
+./Examples/Monocular/mono_tum_vi \
+    Vocabulary/ORBvoc.txt \
+    Examples/Monocular/TUM-VI.yaml \
+    ~/Datasets/TUM-VI/dataset-room1_512_16/mav0/cam0/data \
+    Examples/Monocular/TUM_TimeStamps/dataset-room1_512.txt
+```
+
+### Image Enhancement
+
+The monocular example (mono_tum_vi.cc:136) applies CLAHE (Contrast Limited Adaptive Histogram Equalization):
+
+```cpp
+// Apply CLAHE for better feature extraction
+cv::Ptr<cv::CLAHE> clahe = cv::createCLAHE(3.0, cv::Size(8, 8));
+im = cv::imread(vstrImageFilenames[ni], cv::IMREAD_GRAYSCALE);
+clahe->apply(im, im);
+
+// Track monocular frame
+SLAM.TrackMonocular(im, timestamp);
+```
+
+<Note>
+CLAHE significantly improves feature extraction in challenging lighting conditions common in TUM-VI sequences.
+</Note>
+
+## Running Stereo Examples
+
+Run stereo SLAM with both fisheye cameras:
+
+```bash
+./Examples/Stereo/stereo_tum_vi \
+    Vocabulary/ORBvoc.txt \
+    Examples/Stereo/TUM-VI.yaml \
+    ~/Datasets/TUM-VI/dataset-room1_512_16/mav0/cam0/data \
+    ~/Datasets/TUM-VI/dataset-room1_512_16/mav0/cam1/data \
+    Examples/Stereo/TUM_TimeStamps/dataset-room1_512.txt
+```
+
+Stereo fisheye provides excellent depth estimation despite the distortion.
+
+## Running Monocular-Inertial Examples
+
+Fuse monocular fisheye vision with IMU:
+
+```bash
+./Examples/Monocular-Inertial/mono_inertial_tum_vi \
+    Vocabulary/ORBvoc.txt \
+    Examples/Monocular-Inertial/TUM-VI.yaml \
+    ~/Datasets/TUM-VI/dataset-room1_512_16/mav0/cam0/data \
+    Examples/Monocular-Inertial/TUM_TimeStamps/dataset-room1_512.txt
+```
+
+### Why Visual-Inertial Matters for Fisheye
+
+Fisheye cameras have:
+- High distortion at image edges
+- Variable feature quality across the image
+- IMU helps maintain tracking when features degrade
+
+## Running Stereo-Inertial Examples
+
+The most robust configuration for TUM-VI:
+
+```bash
+./Examples/Stereo-Inertial/stereo_inertial_tum_vi \
+    Vocabulary/ORBvoc.txt \
+    Examples/Stereo-Inertial/TUM-VI.yaml \
+    ~/Datasets/TUM-VI/dataset-room1_512_16/mav0/cam0/data \
+    ~/Datasets/TUM-VI/dataset-room1_512_16/mav0/cam1/data \
+    Examples/Stereo-Inertial/TUM_TimeStamps/dataset-room1_512.txt
+```
+
+This combines:
+- Wide field-of-view stereo vision
+- IMU for scale and fast motion handling
+- Best accuracy and robustness
+
+## Running All Sequences
+
+Use the batch script to process all sequences:
+
+<Steps>
+  <Step title="Edit the script">
+    Open `tum_vi_examples.sh` and set the dataset path:
+    ```bash
+    pathDatasetTUM_VI="/home/user/Datasets/TUM-VI" # Change this!
+    ```
+  </Step>
+  
+  <Step title="Make it executable">
+    ```bash
+    chmod +x tum_vi_examples.sh
+    ```
+  </Step>
+  
+  <Step title="Run all examples">
+    ```bash
+    ./tum_vi_examples.sh
+    ```
+    
+    Processes all room and corridor sequences.
+  </Step>
+</Steps>
+
+## Evaluation
+
+TUM-VI provides **limited ground truth** - only available in the room where sequences start and end.
+
+### Evaluation Strategy
+
+<Note>
+Since ground truth is only available at start/end points, the evaluation measures **drift** over the entire sequence rather than continuous trajectory error.
+</Note>
+
+### Running Evaluation
+
+<Steps>
+  <Step title="Use the evaluation script">
+    ```bash
+    ./tum_vi_eval_examples.sh
+    ```
+  </Step>
+  
+  <Step title="Interpret results">
+    The script computes:
+    - Start-to-end drift
+    - Loop closure performance (for sequences returning to start)
+    - RMS ATE for the portion with ground truth
+  </Step>
+</Steps>
+
+### Manual Evaluation
+
+```bash
+python evaluation/evaluate_ate_scale.py \
+    ~/Datasets/TUM-VI/dataset-room1_512_16/mav0/mocap/data.csv \
+    CameraTrajectory.txt \
+    --start_time 0 \
+    --end_time 10
+```
+
+## Configuration Files
+
+TUM-VI examples use fisheye-specific settings:
+
+<Tabs>
+  <Tab title="Camera Type">
+    ```yaml
+    Camera.type: "KannalaBrandt8"
+    
+    # Fisheye distortion model
+    Camera.k1: 0.0034
+    Camera.k2: 0.0007
+    Camera.k3: -0.0003  
+    Camera.k4: 0.0
+    ```
+  </Tab>
+  
+  <Tab title="Image Processing">
+    ```yaml
+    # Image resolution
+    Camera.width: 512
+    Camera.height: 512
+    
+    # CLAHE enhancement recommended
+    Camera.RGB: 0  # Grayscale
+    ```
+  </Tab>
+  
+  <Tab title="ORB Settings">
+    ```yaml
+    # More features due to wide FOV
+    ORBextractor.nFeatures: 1000
+    ORBextractor.scaleFactor: 1.2
+    ORBextractor.nLevels: 8
+    ```
+  </Tab>
+  
+  <Tab title="IMU Parameters">
+    ```yaml
+    # IMU noise parameters
+    IMU.NoiseGyro: 0.00016  # rad/s^0.5
+    IMU.NoiseAcc: 0.0028    # m/s^1.5
+    IMU.GyroWalk: 0.000022  # rad/s^1.5
+    IMU.AccWalk: 0.00086    # m/s^2.5
+    IMU.Frequency: 200
+    ```
+  </Tab>
+</Tabs>
+
+## Handling ROS Bags (Optional)
+
+<Note>
+TUM-VI rosbags may have chunk size issues. Rebag them if needed:
+</Note>
+
+```bash
+rosrun rosbag fastrebag.py \
+    dataset-room1_512_16.bag \
+    dataset-room1_512_16_small_chunks.bag
+```
+
+Then use with ROS examples:
+```bash
+rosbag play --pause dataset-room1_512_16_small_chunks.bag \
+    /cam0/image_raw:=/camera/left/image_raw \
+    /cam1/image_raw:=/camera/right/image_raw \
+    /imu0:=/imu
+```
+
+## Performance Comparison
+
+| Sequence | Monocular | Stereo | Mono-Inertial | Stereo-Inertial |
+|----------|-----------|--------|---------------|------------------|
+| room1 | Good | Excellent | Excellent | Best |
+| corridor1 | Moderate | Good | Good | Excellent |
+| outdoors1 | Challenging | Good | Excellent | Excellent |
+
+<Note>
+Stereo-Inertial configuration is highly recommended for TUM-VI sequences due to challenging lighting and fast motion.
+</Note>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Poor Feature Tracking">
+    Solutions:
+    - Enable CLAHE equalization
+    - Increase `ORBextractor.nFeatures`
+    - Verify fisheye distortion parameters
+    - Use stereo or visual-inertial mode
+  </Accordion>
+  
+  <Accordion title="Initialization Failed">
+    Fisheye initialization tips:
+    - Ensure sufficient parallax
+    - Move camera slowly at start
+    - Check that distortion model is correct
+    - Try stereo mode for faster initialization
+  </Accordion>
+  
+  <Accordion title="Tracking Lost in Corridors">
+    Long corridors are challenging:
+    - Use visual-inertial mode
+    - Increase feature count
+    - Ensure good lighting
+    - Accept that some drift is normal
+  </Accordion>
+  
+  <Accordion title="Image Distortion Issues">
+    If images appear warped:
+    - Verify `Camera.type: "KannalaBrandt8"`
+    - Check distortion coefficients (k1-k4)
+    - Ensure using correct TUM-VI.yaml file
+    - Do NOT try to undistort images manually
+  </Accordion>
+</AccordionGroup>
+
+## Advanced: Multi-Map SLAM
+
+TUM-VI sequences are ideal for testing multi-map capabilities:
+
+```bash
+# Run multiple sequences with map reuse
+./Examples/Stereo-Inertial/stereo_inertial_tum_vi \
+    Vocabulary/ORBvoc.txt \
+    Examples/Stereo-Inertial/TUM-VI.yaml \
+    ~/Datasets/TUM-VI/dataset-room1_512_16/mav0/cam0/data \
+    ~/Datasets/TUM-VI/dataset-room1_512_16/mav0/cam1/data \
+    Examples/Stereo-Inertial/TUM_TimeStamps/dataset-room1_512.txt \
+    ~/Datasets/TUM-VI/dataset-room2_512_16/mav0/cam0/data \
+    ~/Datasets/TUM-VI/dataset-room2_512_16/mav0/cam1/data \
+    Examples/Stereo-Inertial/TUM_TimeStamps/dataset-room2_512.txt
+```
+
+The system will:
+1. Build first map in room1
+2. Save the map
+3. Load and extend the atlas for room2
+4. Potentially merge maps if overlap detected
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="EuRoC Dataset" icon="drone" href="/examples/euroc-dataset">
+    Compare with pinhole camera examples
+  </Card>
+  
+  <Card title="Fisheye Calibration" icon="circle" href="/configuration/camera-settings">
+    Calibrate your own fisheye camera
+  </Card>
+  
+  <Card title="Multi-Map SLAM" icon="map" href="/guides/multi-map-slam">
+    Learn about atlas and map management
+  </Card>
+  
+  <Card title="RealSense Examples" icon="video" href="/examples/realsense-cameras">
+    Try real-time fisheye SLAM
+  </Card>
+</CardGroup>

@@ -1,0 +1,176 @@
+---
+title: ORBextractor
+description: Feature extraction and ORB descriptor computation with scale-space pyramid
+---
+
+## Overview
+
+The `ORBextractor` class extracts ORB (Oriented FAST and Rotated BRIEF) features from images using a scale-space pyramid representation. Features are distributed across the image using an octree-based approach for uniform spatial coverage.
+
+**Header:** `include/ORBextractor.h`
+
+## Constructor
+
+### ORBextractor
+
+```cpp
+ORBextractor(int nfeatures, float scaleFactor, int nlevels,
+             int iniThFAST, int minThFAST)
+```
+
+Creates a new ORB feature extractor.
+
+**Parameters:**
+- `nfeatures` - Target number of features to extract
+- `scaleFactor` - Scale factor between pyramid levels (typically 1.2)
+- `nlevels` - Number of pyramid levels
+- `iniThFAST` - Initial FAST detection threshold
+- `minThFAST` - Minimum FAST threshold if initial detection fails
+
+## Feature Extraction
+
+### operator()
+
+```cpp
+int operator()(cv::InputArray _image, cv::InputArray _mask,
+               std::vector<cv::KeyPoint>& _keypoints,
+               cv::OutputArray _descriptors,
+               std::vector<int> &vLappingArea)
+```
+
+Extracts ORB features and computes descriptors from an input image.
+
+**Parameters:**
+- `_image` - Input image
+- `_mask` - Mask for extraction region (currently ignored)
+- `_keypoints` - Output vector of detected keypoints
+- `_descriptors` - Output matrix of ORB descriptors
+- `vLappingArea` - Lapping area information for stereo
+
+**Returns:** Number of features extracted
+
+**Details:**
+- Features are dispersed uniformly using an octree structure
+- Extracts features across multiple scale levels
+- Computes 256-bit ORB binary descriptors
+
+## Scale Information
+
+### GetLevels
+
+```cpp
+int GetLevels()
+```
+
+Returns the number of pyramid levels.
+
+### GetScaleFactor
+
+```cpp
+float GetScaleFactor()
+```
+
+Returns the scale factor between pyramid levels.
+
+### GetScaleFactors
+
+```cpp
+std::vector<float> GetScaleFactors()
+```
+
+Returns scale factors for all pyramid levels.
+
+### GetInverseScaleFactors
+
+```cpp
+std::vector<float> GetInverseScaleFactors()
+```
+
+Returns inverse scale factors for all pyramid levels.
+
+### GetScaleSigmaSquares
+
+```cpp
+std::vector<float> GetScaleSigmaSquares()
+```
+
+Returns squared sigma values for each pyramid level.
+
+### GetInverseScaleSigmaSquares
+
+```cpp
+std::vector<float> GetInverseScaleSigmaSquares()
+```
+
+Returns inverse squared sigma values for each pyramid level.
+
+## Public Members
+
+### mvImagePyramid
+
+```cpp
+std::vector<cv::Mat> mvImagePyramid
+```
+
+Stores the image pyramid at all scale levels.
+
+## Constants
+
+### Score Types
+
+```cpp
+enum { HARRIS_SCORE=0, FAST_SCORE=1 }
+```
+
+Keypoint scoring methods:
+- `HARRIS_SCORE` - Harris corner response
+- `FAST_SCORE` - FAST corner response
+
+## Implementation Details
+
+### FAST Detection
+
+The extractor uses adaptive FAST corner detection:
+1. Attempts detection with `iniThFAST` threshold
+2. Falls back to `minThFAST` if insufficient features found
+3. Ensures robust feature detection in various conditions
+
+### Octree Distribution
+
+Features are distributed uniformly using an octree structure:
+- Divides image into quadrants recursively
+- Ensures spatial coverage across the image
+- Prevents feature clustering in textured regions
+
+### Pyramid Levels
+
+Scale-space representation properties:
+- Each level scaled by `scaleFactor` from previous level
+- Features detected at all levels for scale invariance
+- Typical configuration: 8 levels with scale factor 1.2
+
+## Usage Example
+
+```cpp
+// Create extractor with 1000 features, 8 levels
+ORBextractor extractor(1000, 1.2f, 8, 20, 7);
+
+// Extract features from image
+cv::Mat image = cv::imread("image.png", cv::IMREAD_GRAYSCALE);
+std::vector<cv::KeyPoint> keypoints;
+cv::Mat descriptors;
+std::vector<int> lappingArea;
+
+int nFeatures = extractor(image, cv::Mat(), keypoints, descriptors, lappingArea);
+
+// Access pyramid information
+int nLevels = extractor.GetLevels();
+float scale = extractor.GetScaleFactor();
+std::vector<cv::Mat> pyramid = extractor.mvImagePyramid;
+```
+
+## See Also
+
+- [ORBmatcher](/api/orb-matcher) - Feature matching using ORB descriptors
+- [Frame](/api/frame) - Frame representation using ORB features
+- [KeyFrame](/api/keyframe) - Keyframe with ORB features

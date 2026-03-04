@@ -1,0 +1,444 @@
+---
+title: Configuration Files
+description: Understanding and customizing ORB-SLAM3 YAML configuration files for different camera setups
+---
+
+ORB-SLAM3 uses YAML configuration files to define camera parameters, ORB extractor settings, IMU parameters, and visualization options. This guide explains the structure and parameters of these configuration files.
+
+## Configuration File Structure
+
+A typical ORB-SLAM3 configuration file contains several sections:
+
+- **System Configuration**: Atlas loading/saving settings
+- **Camera Parameters**: Intrinsics, distortion, and stereo/depth parameters
+- **IMU Parameters**: Noise characteristics and transformations (for inertial sensors)
+- **ORB Extractor Settings**: Feature detection parameters
+- **Viewer Parameters**: Visualization settings
+
+## Basic Configuration Template
+
+All configuration files start with the YAML version declaration:
+
+```yaml
+%YAML:1.0
+```
+
+## System Configuration
+
+Optional settings for loading and saving map sessions:
+
+```yaml
+#--------------------------------------------------------------------------------------------
+# System config
+#--------------------------------------------------------------------------------------------
+
+# Load a previous session (Atlas)
+#System.LoadAtlasFromFile: "Session_MH01_MH02_MH03_Stereo60_Pseudo"
+
+# Save the current session to a file
+#System.SaveAtlasToFile: "Session_MH01_MH02_MH03_Stereo60_Pseudo"
+```
+
+<Warning>
+If the LoadFile doesn't exist, the system will create a new Atlas from scratch. If a SaveFile already exists, it will be overwritten.
+</Warning>
+
+## Camera Parameters
+
+### Camera Type
+
+ORB-SLAM3 supports two camera models:
+
+```yaml
+File.version: "1.0"
+
+# Choose camera model
+Camera.type: "PinHole"       # For pinhole cameras
+# OR
+Camera.type: "KannalaBrandt8" # For fisheye cameras
+```
+
+### Pinhole Camera Configuration
+
+<Tabs>
+  <Tab title="Monocular">
+    ```yaml
+    # Camera calibration and distortion parameters (OpenCV)
+    Camera1.fx: 517.306408
+    Camera1.fy: 516.469215
+    Camera1.cx: 318.643040
+    Camera1.cy: 255.313989
+
+    # Distortion coefficients
+    Camera1.k1: 0.262383
+    Camera1.k2: -0.953104
+    Camera1.p1: -0.005358
+    Camera1.p2: 0.002628
+    Camera1.k3: 1.163314
+
+    # Image dimensions
+    Camera.width: 640
+    Camera.height: 480
+
+    # Frame rate
+    Camera.fps: 30
+
+    # Color order (0: BGR, 1: RGB)
+    Camera.RGB: 1
+    ```
+  </Tab>
+  
+  <Tab title="Stereo">
+    ```yaml
+    # Left camera parameters
+    Camera1.fx: 458.654
+    Camera1.fy: 457.296
+    Camera1.cx: 367.215
+    Camera1.cy: 248.375
+
+    Camera1.k1: -0.28340811
+    Camera1.k2: 0.07395907
+    Camera1.p1: 0.00019359
+    Camera1.p2: 1.76187114e-05
+
+    # Right camera parameters
+    Camera2.fx: 457.587
+    Camera2.fy: 456.134
+    Camera2.cx: 379.999
+    Camera2.cy: 255.238
+
+    Camera2.k1: -0.28368365
+    Camera2.k2: 0.07451284
+    Camera2.p1: -0.00010473
+    Camera2.p2: -3.55590700e-05
+
+    # Image dimensions
+    Camera.width: 752
+    Camera.height: 480
+
+    # Frame rate
+    Camera.fps: 20
+
+    # Color order
+    Camera.RGB: 1
+
+    # Stereo baseline times depth threshold
+    Stereo.ThDepth: 60.0
+
+    # Transformation from left to right camera
+    Stereo.T_c1_c2: !!opencv-matrix
+      rows: 4
+      cols: 4
+      dt: f
+      data: [0.999997256477797,-0.002317135723275,-0.000343393120620,0.110074137800478,
+             0.002312067192432,0.999898048507103,-0.014090668452683,-0.000156612054392,
+             0.000376008102320,0.014089835846691,0.999900662638081,0.000889382785432,
+             0,0,0,1.000000000000000]
+    ```
+  </Tab>
+  
+  <Tab title="RGB-D">
+    ```yaml
+    # Camera calibration parameters
+    Camera1.fx: 517.306408
+    Camera1.fy: 516.469215
+    Camera1.cx: 318.643040
+    Camera1.cy: 255.313989
+
+    Camera1.k1: 0.262383
+    Camera1.k2: -0.953104
+    Camera1.p1: -0.005358
+    Camera1.p2: 0.002628
+    Camera1.k3: 1.163314
+
+    # Image dimensions
+    Camera.width: 640
+    Camera.height: 480
+
+    # Frame rate
+    Camera.fps: 30
+
+    # Color order
+    Camera.RGB: 1
+
+    # Depth parameters
+    Stereo.ThDepth: 40.0
+    Stereo.b: 0.07732  # Baseline
+
+    # Depth map scale factor
+    RGBD.DepthMapFactor: 5000.0  # Use 1.0 for ROS bags
+    ```
+  </Tab>
+</Tabs>
+
+### Parameter Descriptions
+
+<Accordion title="Intrinsic Parameters">
+  - `fx`, `fy`: Focal lengths in pixels (x and y directions)
+  - `cx`, `cy`: Principal point coordinates (optical center)
+  
+  These parameters define the camera's internal geometry and can be obtained through calibration.
+</Accordion>
+
+<Accordion title="Distortion Coefficients">
+  Radial and tangential distortion parameters following OpenCV convention:
+  
+  - `k1`, `k2`, `k3`: Radial distortion coefficients
+  - `p1`, `p2`: Tangential distortion coefficients
+  
+  For low-distortion cameras, some coefficients may be zero or omitted.
+</Accordion>
+
+<Accordion title="Stereo Parameters">
+  - `Stereo.ThDepth`: Maximum depth threshold (baseline × threshold value)
+  - `Stereo.b`: Stereo baseline in meters (for RGB-D)
+  - `Stereo.T_c1_c2`: 4×4 transformation matrix from left to right camera
+  
+  The transformation matrix includes rotation and translation between stereo camera pairs.
+</Accordion>
+
+<Accordion title="RGB-D Parameters">
+  - `RGBD.DepthMapFactor`: Scale factor to convert depth values to meters
+    - Use `5000.0` for TUM RGB-D dataset format (depth in mm × 5)
+    - Use `1.0` if depth is already in meters (common for ROS)
+</Accordion>
+
+## IMU Parameters
+
+For visual-inertial configurations, add IMU parameters:
+
+```yaml
+# Transformation from camera to body-frame (IMU)
+IMU.T_b_c1: !!opencv-matrix
+  rows: 4
+  cols: 4
+  dt: f
+  data: [0.0148655429818, -0.999880929698, 0.00414029679422, -0.0216401454975,
+         0.999557249008, 0.0149672133247, 0.025715529948, -0.064676986768,
+         -0.0257744366974, 0.00375618835797, 0.999660727178, 0.00981073058949,
+         0.0, 0.0, 0.0, 1.0]
+
+# IMU noise characteristics
+IMU.NoiseGyro: 1.7e-04     # Gyroscope measurement noise (rad/s)
+IMU.NoiseAcc: 2.0e-03       # Accelerometer measurement noise (m/s^2)
+IMU.GyroWalk: 1.9393e-05    # Gyroscope random walk (rad/s^2)
+IMU.AccWalk: 3.0e-03        # Accelerometer random walk (m/s^3)
+IMU.Frequency: 200.0        # IMU sample rate (Hz)
+```
+
+<Tip>
+IMU noise parameters should be obtained from your sensor's datasheet or through Allan variance analysis. See the [Calibration Guide](/guides/calibration) for details.
+</Tip>
+
+## ORB Extractor Settings
+
+ORB feature extraction parameters control the number and quality of detected features:
+
+```yaml
+#--------------------------------------------------------------------------------------------
+# ORB Parameters
+#--------------------------------------------------------------------------------------------
+
+# Number of features per image
+ORBextractor.nFeatures: 1200
+
+# Scale factor between levels in the scale pyramid
+ORBextractor.scaleFactor: 1.2
+
+# Number of levels in the scale pyramid
+ORBextractor.nLevels: 8
+
+# FAST threshold
+# Image is divided in a grid. At each cell FAST features are extracted.
+# First iniThFAST is used. If no corners detected, minThFAST is used.
+ORBextractor.iniThFAST: 20
+ORBextractor.minThFAST: 7
+```
+
+### Parameter Guidelines
+
+<CodeGroup>
+```yaml Default Settings
+ORBextractor.nFeatures: 1200
+ORBextractor.scaleFactor: 1.2
+ORBextractor.nLevels: 8
+ORBextractor.iniThFAST: 20
+ORBextractor.minThFAST: 7
+```
+
+```yaml Low-Texture Environments
+# Increase features, lower FAST threshold
+ORBextractor.nFeatures: 2000
+ORBextractor.scaleFactor: 1.2
+ORBextractor.nLevels: 8
+ORBextractor.iniThFAST: 15
+ORBextractor.minThFAST: 5
+```
+
+```yaml High-Speed Motion
+# More features, more pyramid levels
+ORBextractor.nFeatures: 1500
+ORBextractor.scaleFactor: 1.2
+ORBextractor.nLevels: 10
+ORBextractor.iniThFAST: 20
+ORBextractor.minThFAST: 7
+```
+</CodeGroup>
+
+<Accordion title="nFeatures">
+  Target number of ORB features to extract per frame.
+  
+  - **Lower values** (500-800): Faster processing, less robust tracking
+  - **Higher values** (1500-2000): More robust, higher computational cost
+  - **Recommended**: 1000-1200 for most applications
+</Accordion>
+
+<Accordion title="scaleFactor">
+  Scale factor between consecutive pyramid levels.
+  
+  - Typical values: 1.2 (more levels, finer scale) to 1.5 (fewer levels)
+  - Affects scale invariance and computational cost
+  - **Recommended**: 1.2 for general use
+</Accordion>
+
+<Accordion title="nLevels">
+  Number of pyramid levels for scale-space feature detection.
+  
+  - More levels = better scale invariance but higher computation
+  - **Recommended**: 8 levels for most scenarios
+</Accordion>
+
+<Accordion title="FAST Thresholds">
+  Thresholds for FAST corner detection:
+  
+  - `iniThFAST`: Initial threshold tried first
+  - `minThFAST`: Fallback threshold if insufficient features found
+  
+  **Lower thresholds** for low-contrast or poorly textured scenes.
+</Accordion>
+
+## Viewer Parameters
+
+Visualization settings for the Pangolin viewer:
+
+```yaml
+#--------------------------------------------------------------------------------------------
+# Viewer Parameters
+#--------------------------------------------------------------------------------------------
+Viewer.KeyFrameSize: 0.05
+Viewer.KeyFrameLineWidth: 1.0
+Viewer.GraphLineWidth: 0.9
+Viewer.PointSize: 2.0
+Viewer.CameraSize: 0.08
+Viewer.CameraLineWidth: 3.0
+Viewer.ViewpointX: 0.0
+Viewer.ViewpointY: -0.7
+Viewer.ViewpointZ: -1.8
+Viewer.ViewpointF: 500.0
+Viewer.imageViewScale: 1.0
+```
+
+These parameters control the 3D visualization appearance and can be adjusted for better visibility based on your scene scale.
+
+## Example Configurations
+
+### EuRoC MAV Dataset (Stereo-Inertial)
+
+Complete configuration for EuRoC dataset with stereo cameras and IMU:
+
+```yaml EuRoC.yaml
+%YAML:1.0
+
+File.version: "1.0"
+Camera.type: "PinHole"
+
+Camera1.fx: 458.654
+Camera1.fy: 457.296
+Camera1.cx: 367.215
+Camera1.cy: 248.375
+Camera1.k1: -0.28340811
+Camera1.k2: 0.07395907
+Camera1.p1: 0.00019359
+Camera1.p2: 1.76187114e-05
+
+Camera2.fx: 457.587
+Camera2.fy: 456.134
+Camera2.cx: 379.999
+Camera2.cy: 255.238
+Camera2.k1: -0.28368365
+Camera2.k2: 0.07451284
+Camera2.p1: -0.00010473
+Camera2.p2: -3.55590700e-05
+
+Camera.width: 752
+Camera.height: 480
+Camera.fps: 20
+Camera.RGB: 1
+
+Stereo.ThDepth: 60.0
+Stereo.T_c1_c2: !!opencv-matrix
+  rows: 4
+  cols: 4
+  dt: f
+  data: [0.999997256477797,-0.002317135723275,-0.000343393120620,0.110074137800478,
+         0.002312067192432,0.999898048507103,-0.014090668452683,-0.000156612054392,
+         0.000376008102320,0.014089835846691,0.999900662638081,0.000889382785432,
+         0,0,0,1.000000000000000]
+
+IMU.T_b_c1: !!opencv-matrix
+  rows: 4
+  cols: 4
+  dt: f
+  data: [0.0148655429818, -0.999880929698, 0.00414029679422, -0.0216401454975,
+         0.999557249008, 0.0149672133247, 0.025715529948, -0.064676986768,
+         -0.0257744366974, 0.00375618835797, 0.999660727178, 0.00981073058949,
+         0.0, 0.0, 0.0, 1.0]
+
+IMU.NoiseGyro: 1.7e-04
+IMU.NoiseAcc: 2.0e-03
+IMU.GyroWalk: 1.9393e-05
+IMU.AccWalk: 3.0e-03
+IMU.Frequency: 200.0
+
+ORBextractor.nFeatures: 1200
+ORBextractor.scaleFactor: 1.2
+ORBextractor.nLevels: 8
+ORBextractor.iniThFAST: 20
+ORBextractor.minThFAST: 7
+```
+
+## Creating Your Own Configuration
+
+<Steps>
+  <Step title="Calibrate your camera">
+    Use the calibration tools and methods described in the [Calibration Guide](/guides/calibration) to obtain accurate intrinsic and distortion parameters.
+  </Step>
+  
+  <Step title="Choose a template">
+    Start with an example configuration file from `Examples/` that matches your sensor type (Mono, Stereo, RGB-D, with or without IMU).
+  </Step>
+  
+  <Step title="Update camera parameters">
+    Replace the calibration values with your camera's parameters. Ensure the image dimensions match your actual image size.
+  </Step>
+  
+  <Step title="Tune ORB parameters">
+    Start with default ORB settings and adjust based on your environment:
+    - Lower FAST thresholds for low-texture scenes
+    - Increase nFeatures for challenging environments
+  </Step>
+  
+  <Step title="Test and validate">
+    Run ORB-SLAM3 with your configuration and verify tracking performance. Check the viewer for feature distribution.
+  </Step>
+</Steps>
+
+<Warning>
+Incorrect camera calibration parameters will result in poor tracking and mapping performance. Always verify your calibration before use.
+</Warning>
+
+## Next Steps
+
+- [Camera Calibration Guide](/guides/calibration) - Learn how to calibrate your sensors
+- [Running Examples](/examples/euroc) - Test your configuration with example datasets
+- [ROS Integration](/guides/ros-integration) - Use your configuration with ROS

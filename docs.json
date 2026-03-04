@@ -1,122 +1,130 @@
 {
   "$schema": "https://mintlify.com/docs.json",
-  "theme": "mint",
-  "name": "Mint Starter Kit",
+  "name": "ORB-SLAM3",
+  "theme": "aspen",
   "colors": {
-    "primary": "#16A34A",
-    "light": "#07C983",
-    "dark": "#15803D"
+    "primary": "#2a73a7",
+    "light": "#b2cddf",
+    "dark": "#2a73a7"
   },
   "favicon": "/favicon.svg",
-  "navigation": {
-    "tabs": [
-      {
-        "tab": "Guides",
-        "groups": [
-          {
-            "group": "Getting started",
-            "pages": [
-              "index",
-              "quickstart",
-              "development"
-            ]
-          },
-          {
-            "group": "Customization",
-            "pages": [
-              "essentials/settings",
-              "essentials/navigation"
-            ]
-          },
-          {
-            "group": "Writing content",
-            "pages": [
-              "essentials/markdown",
-              "essentials/code",
-              "essentials/images",
-              "essentials/reusable-snippets"
-            ]
-          },
-          {
-            "group": "AI tools",
-            "pages": [
-              "ai-tools/cursor",
-              "ai-tools/claude-code",
-              "ai-tools/windsurf"
-            ]
-          }
-        ]
-      },
-      {
-        "tab": "API reference",
-        "groups": [
-          {
-            "group": "API documentation",
-            "pages": [
-              "api-reference/introduction"
-            ]
-          },
-          {
-            "group": "Endpoint examples",
-            "pages": [
-              "api-reference/endpoint/get",
-              "api-reference/endpoint/create",
-              "api-reference/endpoint/delete",
-              "api-reference/endpoint/webhook"
-            ]
-          }
-        ]
-      }
-    ],
-    "global": {
-      "anchors": [
-        {
-          "anchor": "Documentation",
-          "href": "https://mintlify.com/docs",
-          "icon": "book-open-cover"
-        },
-        {
-          "anchor": "Blog",
-          "href": "https://mintlify.com/blog",
-          "icon": "newspaper"
-        }
-      ]
-    }
-  },
   "logo": {
     "light": "/logo/light.svg",
     "dark": "/logo/dark.svg"
   },
   "navbar": {
-    "links": [
-      {
-        "label": "Support",
-        "href": "mailto:hi@mintlify.com"
-      }
-    ],
     "primary": {
-      "type": "button",
-      "label": "Dashboard",
-      "href": "https://dashboard.mintlify.com"
+      "type": "github",
+      "href": "https://github.com/UZ-SLAMLab/ORB_SLAM3"
     }
-  },
-  "contextual": {
-    "options": [
-     "copy",
-     "view",
-     "chatgpt",
-     "claude",
-     "perplexity",
-     "mcp",
-     "cursor",
-     "vscode"
-   ]
   },
   "footer": {
     "socials": {
-      "x": "https://x.com/mintlify",
-      "github": "https://github.com/mintlify",
-      "linkedin": "https://linkedin.com/company/mintlify"
+      "github": "https://github.com/UZ-SLAMLab/ORB_SLAM3"
     }
+  },
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "installation",
+              "quickstart"
+            ]
+          },
+          {
+            "group": "Core Concepts",
+            "pages": [
+              "concepts/slam-overview",
+              "concepts/sensor-modes",
+              "concepts/camera-models",
+              "concepts/multi-map-system",
+              "concepts/imu-integration"
+            ]
+          },
+          {
+            "group": "Guides",
+            "pages": [
+              "guides/building",
+              "guides/configuration",
+              "guides/calibration",
+              "guides/ros-integration",
+              "guides/map-save-load"
+            ]
+          },
+          {
+            "group": "Examples",
+            "pages": [
+              "examples/overview",
+              "examples/euroc-dataset",
+              "examples/tum-vi-dataset",
+              "examples/kitti-dataset",
+              "examples/realsense-cameras"
+            ]
+          },
+          {
+            "group": "Advanced",
+            "pages": [
+              "advanced/performance-tuning",
+              "advanced/evaluation",
+              "advanced/custom-cameras",
+              "advanced/troubleshooting"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Core API",
+            "pages": [
+              "api/system",
+              "api/tracking",
+              "api/local-mapping",
+              "api/loop-closing"
+            ]
+          },
+          {
+            "group": "Data Structures",
+            "pages": [
+              "api/frame",
+              "api/keyframe",
+              "api/map",
+              "api/atlas",
+              "api/map-point"
+            ]
+          },
+          {
+            "group": "Camera Models",
+            "pages": [
+              "api/geometric-camera",
+              "api/pinhole",
+              "api/kannala-brandt"
+            ]
+          },
+          {
+            "group": "IMU & Sensors",
+            "pages": [
+              "api/imu-types",
+              "api/settings"
+            ]
+          },
+          {
+            "group": "Utilities",
+            "pages": [
+              "api/orb-extractor",
+              "api/orb-matcher",
+              "api/optimizer",
+              "api/converter"
+            ]
+          }
+        ]
+      }
+    ]
   }
 }
