@@ -1,0 +1,147 @@
+{
+  "projectType": "sdk-library",
+  "projectName": "ORB-SLAM3",
+  "projectDescription": "An accurate open-source library for Visual, Visual-Inertial and Multi-Map SLAM with monocular, stereo and RGB-D cameras",
+  "theme": "aspen",
+  "primaryColor": "#2a73a7",
+  "lightColor": "#b2cddf",
+  "darkColor": null,
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "installation",
+              "quickstart"
+            ]
+          },
+          {
+            "group": "Core Concepts",
+            "pages": [
+              "concepts/slam-overview",
+              "concepts/sensor-modes",
+              "concepts/camera-models",
+              "concepts/multi-map-system",
+              "concepts/imu-integration"
+            ]
+          },
+          {
+            "group": "Guides",
+            "pages": [
+              "guides/building",
+              "guides/configuration",
+              "guides/calibration",
+              "guides/ros-integration",
+              "guides/map-save-load"
+            ]
+          },
+          {
+            "group": "Examples",
+            "pages": [
+              "examples/overview",
+              "examples/euroc-dataset",
+              "examples/tum-vi-dataset",
+              "examples/kitti-dataset",
+              "examples/realsense-cameras"
+            ]
+          },
+          {
+            "group": "Advanced",
+            "pages": [
+              "advanced/performance-tuning",
+              "advanced/evaluation",
+              "advanced/custom-cameras",
+              "advanced/troubleshooting"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Core API",
+            "pages": [
+              "api/system",
+              "api/tracking",
+              "api/local-mapping",
+              "api/loop-closing"
+            ]
+          },
+          {
+            "group": "Data Structures",
+            "pages": [
+              "api/frame",
+              "api/keyframe",
+              "api/map",
+              "api/atlas",
+              "api/map-point"
+            ]
+          },
+          {
+            "group": "Camera Models",
+            "pages": [
+              "api/geometric-camera",
+              "api/pinhole",
+              "api/kannala-brandt"
+            ]
+          },
+          {
+            "group": "IMU & Sensors",
+            "pages": [
+              "api/imu-types",
+              "api/settings"
+            ]
+          },
+          {
+            "group": "Utilities",
+            "pages": [
+              "api/orb-extractor",
+              "api/orb-matcher",
+              "api/optimizer",
+              "api/converter"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Visual, Visual-Inertial and Multi-Map SLAM",
+    "Support for monocular, stereo and RGB-D cameras",
+    "Pin-hole and fisheye lens models",
+    "Real-time performance with high accuracy",
+    "IMU integration with 2-second initialization",
+    "Multi-map capabilities with seamless map fusion",
+    "Map save and load functionality",
+    "ROS integration support"
+  ],
+  "publicApiSurface": [
+    "ORB_SLAM3::System",
+    "ORB_SLAM3::System::TrackStereo",
+    "ORB_SLAM3::System::TrackRGBD",
+    "ORB_SLAM3::System::TrackMonocular",
+    "ORB_SLAM3::System::Shutdown",
+    "ORB_SLAM3::System::SaveMap",
+    "ORB_SLAM3::System::LoadMap",
+    "ORB_SLAM3::Tracking",
+    "ORB_SLAM3::LocalMapping",
+    "ORB_SLAM3::LoopClosing",
+    "ORB_SLAM3::Atlas",
+    "ORB_SLAM3::Map",
+    "ORB_SLAM3::Frame",
+    "ORB_SLAM3::KeyFrame",
+    "ORB_SLAM3::MapPoint",
+    "ORB_SLAM3::Settings",
+    "ORB_SLAM3::GeometricCamera",
+    "ORB_SLAM3::Pinhole",
+    "ORB_SLAM3::KannalaBrandt8",
+    "ORB_SLAM3::IMU::Point",
+    "ORB_SLAM3::ORBextractor",
+    "ORB_SLAM3::ORBmatcher"
+  ]
+}
